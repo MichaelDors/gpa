@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GPA Calculator</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="header-title">
+        <h1>GPA Calculator</h1>
+      </div>
+      <div class="header-actions">
+        <button id="btn-load-sample" title="Load sample data">Sample Data</button>
+        <button id="btn-paste-data" title="Paste data">Paste</button>
+        <button id="btn-export-csv" title="Export CSV">Export CSV</button>
+        <label for="csv-file-input" class="file-label-btn" title="Import CSV file">
+          Import CSV
+          <input type="file" id="csv-file-input" class="hidden-file-input" accept=".csv,text/csv,text/plain">
+        </label>
+        <button id="btn-clear-all" class="btn-danger" title="Clear all">Clear All</button>
+      </div>
+    </header>
+
+    <!-- Stats Ribbon -->
+    <section class="stats-ribbon" aria-label="GPA Summary">
+      <div class="stat-card primary">
+        <div class="stat-label">Weighted GPA</div>
+        <div class="stat-value" id="stat-weighted-gpa">0.000</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Unweighted GPA</div>
+        <div class="stat-value" id="stat-unweighted-gpa">0.000</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Total Credits</div>
+        <div class="stat-value" id="stat-total-credits">0.0</div>
+        <div class="stat-sub" id="stat-course-count">0 graded</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Freshman</div>
+        <div class="stat-value" id="stat-freshman-gpa">—</div>
+        <div class="stat-sub" id="stat-freshman-credits">0 cr</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Sophomore</div>
+        <div class="stat-value" id="stat-sophomore-gpa">—</div>
+        <div class="stat-sub" id="stat-sophomore-credits">0 cr</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Junior</div>
+        <div class="stat-value" id="stat-junior-gpa">—</div>
+        <div class="stat-sub" id="stat-junior-credits">0 cr</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Senior</div>
+        <div class="stat-value" id="stat-senior-gpa">—</div>
+        <div class="stat-sub" id="stat-senior-credits">0 cr</div>
+      </div>
+    </section>
+
+    <!-- Toolbar & Filter Tabs -->
+    <section class="toolbar">
+      <div class="tabs" role="tablist">
+        <button class="tab-btn active" data-filter="all" id="tab-all">All (<span id="count-all">0</span>)</button>
+        <button class="tab-btn" data-filter="Freshman" id="tab-freshman">Freshman (<span id="count-freshman">0</span>)</button>
+        <button class="tab-btn" data-filter="Sophomore" id="tab-sophomore">Sophomore (<span id="count-sophomore">0</span>)</button>
+        <button class="tab-btn" data-filter="Junior" id="tab-junior">Junior (<span id="count-junior">0</span>)</button>
+        <button class="tab-btn" data-filter="Senior" id="tab-senior">Senior (<span id="count-senior">0</span>)</button>
+      </div>
+
+      <div class="table-actions">
+        <button id="btn-add-row" class="btn-primary">+ Add Row</button>
+        <button id="btn-add-5-rows">+ 5 Rows</button>
+      </div>
+    </section>
+
+    <!-- Spreadsheet Table -->
+    <main class="spreadsheet-container">
+      <table class="spreadsheet" id="gpa-table">
+        <thead>
+          <tr>
+            <th class="col-num">#</th>
+            <th style="width: 34%;">Class</th>
+            <th style="width: 20%;">Scale</th>
+            <th style="width: 12%;">Credits</th>
+            <th style="width: 14%;">Grade</th>
+            <th style="width: 12%;">Year</th>
+            <th class="col-computed">Points</th>
+            <th class="col-actions"></th>
+          </tr>
+        </thead>
+        <tbody id="spreadsheet-body">
+          <!-- Populated by JavaScript -->
+        </tbody>
+      </table>
+      <div id="empty-state" class="empty-table-state" style="display: none;">
+        <p>No classes.</p>
+        <button id="btn-empty-add" class="btn-primary">+ Add Row</button>
+      </div>
+    </main>
+
+    <!-- Scale Reference Table -->
+    <footer class="footer-tools">
+      <section class="tool-panel">
+        <h3>Scale Reference</h3>
+        <div style="max-height: 160px; overflow-y: auto; border: 1px solid var(--border-color);">
+          <table class="scale-table">
+            <thead>
+              <tr>
+                <th>Tier</th>
+                <th>Range (%)</th>
+                <th>Regular (4.33)</th>
+                <th>Honors (4.83)</th>
+                <th>AP / CCP (5.33)</th>
+              </tr>
+            </thead>
+            <tbody id="scale-table-body">
+              <!-- Rendered dynamically from config.js -->
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </footer>
+  </div>
+
+  <!-- Paste Modal -->
+  <div id="paste-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Paste Data</h3>
+        <button id="btn-close-paste-modal" class="btn-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p>Paste CSV or spreadsheet rows (comma or tab delimited):</p>
+        <textarea id="paste-textarea" rows="8" placeholder="e.g.&#10;AP Psychology,0.5,5.33,95%,Junior&#10;CCP College Algebra,1,5.33,88.19%,&#10;Algebra II Honors,0.5,4.83,96.13%,Sophomore"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-paste">Cancel</button>
+        <button id="btn-submit-paste" class="btn-primary">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script type="module" src="app.js"></script>
+</body>
+</html>
