@@ -1000,8 +1000,9 @@ function attachTableEvents() {
   });
 
   tbody.addEventListener('click', e => {
-    if (e.target.classList.contains('btn-delete-row')) {
-      const tr = e.target.closest('tr');
+    const deleteBtn = e.target.closest('.btn-delete-row');
+    if (deleteBtn) {
+      const tr = deleteBtn.closest('tr');
       if (!tr) return;
       const id = tr.dataset.id;
       pushHistory();
@@ -1428,7 +1429,7 @@ function setupCloudAuthUI() {
         }
 
         // Trigger smart sync with cloud
-        await performFullCloudSync();
+        await performFullCloudSync(true);
 
         setTimeout(() => {
           closeAuthModal();
@@ -1452,7 +1453,7 @@ function setupCloudAuthUI() {
       const authMenu = document.getElementById('auth-menu');
       if (authMenu) authMenu.classList.remove('show');
       showToast('Syncing with cloud...');
-      await performFullCloudSync();
+      await performFullCloudSync(true);
     });
   }
 
@@ -1472,7 +1473,7 @@ function setupCloudAuthUI() {
 // ============================================================================
 // Full Cloud Synchronization Engine (Smart Merge with Zero Data Loss)
 // ============================================================================
-async function performFullCloudSync() {
+async function performFullCloudSync(isManualSync = false) {
   if (!ConvexService.isAuthenticated() || !ConvexService.isConfigured()) return;
 
   try {
@@ -1506,13 +1507,18 @@ async function performFullCloudSync() {
         const found = snapshots.find(s => s.id === syncResult.activeSnapshotId);
         if (found) {
           state.activeSnapshotId = found.id;
-          state.courses = JSON.parse(JSON.stringify(found.courses || []));
+          // Guard: Never overwrite working table if user has active unsaved edits/undo in progress
+          if (!state.hasUnsavedChanges || isManualSync) {
+            state.courses = JSON.parse(JSON.stringify(found.courses || []));
+            renderTable();
+          }
         }
       }
 
       saveLocalData();
-      renderTable();
       renderSnapshotList();
+      updateSnapshotBadge();
+      updateActiveSnapshotHeaderUI();
     }
   } catch (err) {
     console.error('Smart sync error', err);
@@ -1925,9 +1931,9 @@ async function init() {
     try {
       const user = await ConvexService.checkSession();
       if (user) {
-        await performFullCloudSync();
+        await performFullCloudSync(true);
         ConvexService.startBackgroundSync(async () => {
-          await performFullCloudSync();
+          await performFullCloudSync(false);
         }, 15000);
       }
     } catch (e) {

@@ -443,6 +443,10 @@ table.spreadsheet tr:hover td {
   background: var(--danger-bg);
 }
 
+.btn-delete-row i {
+  pointer-events: none;
+}
+
 .col-computed {
   font-family: var(--font-mono);
   font-weight: 600;
