@@ -14,69 +14,6 @@ const courseValidator = v.object({
 const metricsValidator = v.optional(v.any());
 
 /**
- * Real-time unified sync state query for live subscriptions
- */
-export const getSyncState = query({
-  args: {
-    sessionToken: v.string(),
-  },
-  handler: async (ctx, args) => {
-    const user = await getUserFromSession(ctx, args.sessionToken);
-    if (!user) return null;
-
-    const snapshots = await ctx.db
-      .query("snapshots")
-      .withIndex("by_user", q => q.eq("userId", user._id))
-      .collect();
-
-    const versions = await ctx.db
-      .query("snapshotVersions")
-      .withIndex("by_user", q => q.eq("userId", user._id))
-      .collect();
-
-    const pref = await ctx.db
-      .query("userPreferences")
-      .withIndex("by_user", q => q.eq("userId", user._id))
-      .first();
-
-    const versionsBySnapshot = {};
-    for (const v of versions) {
-      if (!versionsBySnapshot[v.clientSnapshotId]) {
-        versionsBySnapshot[v.clientSnapshotId] = [];
-      }
-      versionsBySnapshot[v.clientSnapshotId].push({
-        id: v._id,
-        versionNumber: v.versionNumber,
-        name: v.name,
-        note: v.note,
-        courses: v.courses,
-        metrics: v.metrics,
-        createdAt: v.createdAt,
-      });
-    }
-
-    for (const sid of Object.keys(versionsBySnapshot)) {
-      versionsBySnapshot[sid].sort((a, b) => b.versionNumber - a.versionNumber);
-    }
-
-    return {
-      snapshots: snapshots.map(s => ({
-        id: s.clientSnapshotId,
-        name: s.name,
-        courses: s.courses,
-        metrics: s.metrics,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
-        versionCount: (versionsBySnapshot[s.clientSnapshotId] || []).length,
-      })),
-      versions: versionsBySnapshot,
-      activeSnapshotId: pref ? pref.activeSnapshotId : (snapshots[0] ? snapshots[0].clientSnapshotId : null),
-      serverTimestamp: Date.now(),
-    };
-  },
-});
-
-/**
  * List all snapshot files for the current authenticated user
  */
 export const listSnapshots = query({
