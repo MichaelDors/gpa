@@ -1,0 +1,12 @@
+{
+  "name": "gpa",
+  "version": "1.0.0",
+  "description": "GPA Planner and Predictor with cross-device Convex sync",
+  "type": "module",
+  "scripts": {
+    "dev": "convex dev"
+  },
+  "dependencies": {
+    "convex": "^1.44.0"
+  }
+}

@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GPA Calculator</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -16,21 +17,47 @@
         <h1>GPA Calculator</h1>
       </div>
       <div class="header-actions">
-        <button id="btn-undo" title="Undo (Ctrl+Z / Cmd+Z)" disabled>Undo</button>
-        <button id="btn-redo" title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Cmd+Y)" disabled>Redo</button>
+        <button id="btn-undo" title="Undo (Ctrl+Z / Cmd+Z)" disabled>
+          <i class="fa-solid fa-rotate-left"></i> Undo
+        </button>
+        <button id="btn-redo" title="Redo (Ctrl+Shift+Z / Cmd+Shift+Z / Cmd+Y)" disabled>
+          <i class="fa-solid fa-rotate-right"></i> Redo
+        </button>
+        <button id="btn-save" class="btn-save" title="Save changes (Ctrl+S / Cmd+S)">
+          <span class="save-status-icon"><i class="fa-solid fa-floppy-disk"></i></span> <span id="save-btn-text">Save</span>
+        </button>
 
-        <!-- Snapshots Dropdown -->
+        <span class="header-separator"></span>
+
+        <!-- Snapshots / Files Dropdown -->
         <div class="dropdown" id="snapshots-dropdown">
-          <button id="btn-snapshots-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">
-            Snapshots <span id="snapshot-count-badge" class="badge">0</span> ▾
+          <button id="btn-snapshots-toggle" class="dropdown-toggle active-file-btn" aria-expanded="false" aria-haspopup="true">
+            <span id="active-snap-dirty-dot" class="status-dot dirty" style="display: none;" title="Unsaved changes"></span>
+            <i class="fa-solid fa-folder-open"></i> <span id="active-snapshot-label">Main Schedule</span> <span id="snapshot-count-badge" class="badge">1</span> <i class="fa-solid fa-caret-down dropdown-caret"></i>
           </button>
           <div class="dropdown-menu dropdown-menu-wide" id="snapshots-menu">
+            <div class="dropdown-header-box">
+              <div class="dropdown-current-meta">
+                <span class="dropdown-section-title" style="padding: 0;">Active Snapshot</span>
+                <div class="current-file-actions">
+                  <button id="btn-active-rename" class="btn-small" title="Rename this snapshot">
+                    <i class="fa-solid fa-pen-to-square"></i> Rename
+                  </button>
+                  <button id="btn-active-history" class="btn-small btn-primary" title="View version history">
+                    <i class="fa-solid fa-clock-rotate-left"></i> History
+                  </button>
+                </div>
+              </div>
+            </div>
+            
             <div class="dropdown-snapshot-create">
-              <input type="text" id="dropdown-snapshot-input" placeholder="Snapshot name (optional)">
-              <button id="btn-dropdown-save-snapshot" class="btn-primary">Save</button>
+              <input type="text" id="dropdown-snapshot-input" placeholder="New snapshot name...">
+              <button id="btn-dropdown-save-snapshot" class="btn-primary">
+                <i class="fa-solid fa-plus"></i> Create
+              </button>
             </div>
             <div class="dropdown-divider"></div>
-            <div class="dropdown-section-title">Saved Snapshots</div>
+            <div class="dropdown-section-title">All Snapshots (Files)</div>
             <div id="dropdown-snapshots-list" class="dropdown-snapshots-list">
               <!-- Populated by JavaScript -->
             </div>
@@ -40,18 +67,56 @@
           </div>
         </div>
 
+        <!-- Cloud Sync / Auth Dropdown -->
+        <div class="dropdown" id="auth-dropdown">
+          <button id="btn-auth-toggle" class="dropdown-toggle auth-toggle-btn" aria-expanded="false" aria-haspopup="true" title="Cloud Sync & Account">
+            <span id="auth-status-dot" class="status-dot offline"></span>
+            <span id="auth-btn-label"><i class="fa-solid fa-cloud"></i> Sign In / Sync</span> <i class="fa-solid fa-caret-down dropdown-caret"></i>
+          </button>
+          <div class="dropdown-menu" id="auth-menu">
+            <div id="auth-menu-guest" class="dropdown-auth-section">
+              <div class="dropdown-auth-status">
+                <span class="auth-status-title">Local Mode</span>
+                <span class="auth-status-desc">Changes stored locally on this device.</span>
+              </div>
+              <button id="btn-auth-open-modal" class="dropdown-item btn-menu-primary">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Sign In / Sync Account
+              </button>
+            </div>
+            <div id="auth-menu-user" class="dropdown-auth-section" style="display: none;">
+              <div class="dropdown-auth-status">
+                <span class="auth-status-title" id="auth-menu-username"><i class="fa-solid fa-user"></i> Username</span>
+                <span class="auth-status-desc" id="auth-sync-status-desc">Synced with cloud</span>
+              </div>
+              <div class="dropdown-divider"></div>
+              <button id="btn-auth-sync-now" class="dropdown-item">
+                <i class="fa-solid fa-arrows-rotate"></i> Sync Now
+              </button>
+              <div class="dropdown-divider"></div>
+              <button id="btn-auth-logout" class="dropdown-item text-danger">
+                <i class="fa-solid fa-right-from-bracket"></i> Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+
         <!-- Actions Dropdown -->
         <div class="dropdown" id="actions-dropdown">
-          <button id="btn-dropdown-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">Actions
-            ▾</button>
+          <button id="btn-dropdown-toggle" class="dropdown-toggle" aria-expanded="false" aria-haspopup="true">
+            Actions <i class="fa-solid fa-caret-down dropdown-caret"></i>
+          </button>
           <div class="dropdown-menu" id="dropdown-menu">
-            <button id="btn-export-csv" class="dropdown-item" title="Export to CSV file">Export CSV</button>
+            <button id="btn-export-csv" class="dropdown-item" title="Export to CSV file">
+              <i class="fa-solid fa-file-export"></i> Export CSV
+            </button>
             <label for="csv-file-input" class="dropdown-item file-label-item" title="Import CSV file">
-              Import CSV...
+              <i class="fa-solid fa-file-import"></i> Import CSV...
               <input type="file" id="csv-file-input" class="hidden-file-input" accept=".csv,text/csv,text/plain">
             </label>
             <div class="dropdown-divider"></div>
-            <button id="btn-clear-all" class="dropdown-item text-danger" title="Clear all classes">Clear All</button>
+            <button id="btn-clear-all" class="dropdown-item text-danger" title="Clear all classes">
+              <i class="fa-solid fa-trash-can"></i> Clear All
+            </button>
           </div>
         </div>
       </div>
@@ -107,7 +172,9 @@
       </div>
 
       <div class="table-actions">
-        <button id="btn-add-row" class="btn-primary">+ Add Row</button>
+        <button id="btn-add-row" class="btn-primary">
+          <i class="fa-solid fa-plus"></i> Add Row
+        </button>
       </div>
     </section>
 
@@ -131,8 +198,10 @@
         </tbody>
       </table>
       <div id="empty-state" class="empty-table-state" style="display: none;">
-        <p>No classes.</p>
-        <button id="btn-empty-add" class="btn-primary">+ Add Row</button>
+        <p>No classes in this snapshot.</p>
+        <button id="btn-empty-add" class="btn-primary">
+          <i class="fa-solid fa-plus"></i> Add Row
+        </button>
       </div>
     </main>
 
@@ -158,6 +227,103 @@
         </div>
       </section>
     </footer>
+  </div>
+
+  <!-- ======================================================================= -->
+  <!-- MODALS -->
+  <!-- ======================================================================= -->
+
+  <!-- Version History Modal -->
+  <div id="version-history-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content version-modal-content">
+      <div class="modal-header">
+        <div>
+          <h3 id="version-modal-title">Version History</h3>
+          <p class="modal-subtitle" id="version-modal-subtitle">Revisions for snapshot</p>
+        </div>
+        <button class="btn-close" id="btn-close-version-modal" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="version-history-list" id="version-history-list">
+          <!-- Populated dynamically -->
+        </div>
+        <div id="version-history-empty" class="dropdown-empty-state" style="display: none;">
+          No version history saved for this snapshot yet. Each save records a new revision.
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-version-save-current" class="btn-primary">
+          <i class="fa-solid fa-floppy-disk"></i> Save Current State as New Revision
+        </button>
+        <button id="btn-version-modal-done">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Authentication Modal (Sign In / Register) -->
+  <div id="auth-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content auth-modal-content">
+      <div class="modal-header">
+        <div>
+          <h3 id="auth-modal-title">Cloud Sync & Account</h3>
+          <p class="modal-subtitle">Sync your snapshots and version histories across all devices.</p>
+        </div>
+        <button class="btn-close" id="btn-close-auth-modal" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="auth-tabs">
+          <button id="tab-auth-login" class="auth-tab-btn active">Sign In</button>
+          <button id="tab-auth-register" class="auth-tab-btn">Create Account</button>
+        </div>
+
+        <form id="auth-form" class="auth-form">
+          <div class="form-group">
+            <label for="auth-username-input">Username</label>
+            <input type="text" id="auth-username-input" class="form-input" placeholder="e.g. alex" required autocomplete="username">
+          </div>
+
+          <div class="form-group">
+            <label for="auth-password-input">Password</label>
+            <input type="password" id="auth-password-input" class="form-input" placeholder="••••••••" required autocomplete="current-password">
+          </div>
+
+          <div id="auth-error-msg" class="auth-alert error" style="display: none;"></div>
+          <div id="auth-success-msg" class="auth-alert success" style="display: none;"></div>
+
+          <button type="submit" id="btn-auth-submit" class="btn-primary btn-block">Sign In</button>
+        </form>
+
+        <div class="auth-note">
+          <i class="fa-solid fa-shield-halved"></i> <strong>Zero Data Loss Sync:</strong> Signing in merges your local snapshots with your cloud account. Any different versions are safely preserved in Version History.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Rename Snapshot Modal -->
+  <div id="rename-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content rename-modal-content">
+      <div class="modal-header">
+        <h3>Rename Snapshot</h3>
+        <button class="btn-close" id="btn-close-rename-modal" aria-label="Close">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="rename-input">Snapshot Name</label>
+          <input type="text" id="rename-input" class="form-input" placeholder="Snapshot Name" required>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-rename">Cancel</button>
+        <button id="btn-confirm-rename" class="btn-primary">Save Name</button>
+      </div>
+    </div>
   </div>
 
   <!-- Toast Notification Container -->

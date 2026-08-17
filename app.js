@@ -1,84 +1,38 @@
-import { GRADE_TIERS, SCALE_DEFINITIONS, getTierForGrade, calculateGpaPoints, calculateUnweightedPoints } from './config.js';
+import { GRADE_TIERS, SCALE_DEFINITIONS, getTierForGrade, calculateGpaPoints, calculateUnweightedPoints, getConvexUrl } from './config.js';
+import { ConvexService } from './convex-client.js';
 
 // ============================================================================
-// State Management
+// State Management & Storage Keys
 // ============================================================================
-const STORAGE_KEY = 'gpafinder_courses_v1';
-const STORAGE_KEY_SNAPSHOTS = 'gpafinder_snapshots_v1';
+const STORAGE_KEY_COURSES = 'gpafinder_courses_v1';
+const STORAGE_KEY_SNAPSHOTS = 'gpafinder_snapshots_v2';
+const STORAGE_KEY_VERSIONS = 'gpafinder_versions_v2';
+const STORAGE_KEY_ACTIVE_SNAP = 'gpafinder_active_snapshot_id_v2';
 
 let state = {
+  activeSnapshotId: null,
   courses: [],
   activeFilter: 'all', // 'all' | 'Freshman' | 'Sophomore' | 'Junior' | 'Senior'
+  hasUnsavedChanges: false,
 };
 
 let snapshots = [];
+let versions = {}; // Map: { [snapshotId]: [ { id, versionNumber, name, note, courses, metrics, createdAt } ] }
 
-// Undo / Redo State
+// Undo / Redo History State
 const MAX_HISTORY = 50;
 let undoStack = [];
 let redoStack = [];
 let isApplyingHistory = false;
 let cellEditingInitialState = null;
 
+// Modal tracking state
+let historyModalTargetSnapshotId = null;
+let renameTargetSnapshotId = null;
+
 // Generate unique ID
-function uid() {
-  return 'c_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-}
-
-// Sample High School course data for instant testing
-const SAMPLE_COURSES = [
-  // Freshman
-  { id: uid(), name: 'Honors English 9', scale: 'honors', credits: 1.0, grade: '94', year: 'Freshman' },
-  { id: uid(), name: 'Honors Algebra 2', scale: 'honors', credits: 1.0, grade: '96', year: 'Freshman' },
-  { id: uid(), name: 'Honors Biology', scale: 'honors', credits: 1.0, grade: '91', year: 'Freshman' },
-  { id: uid(), name: 'World History', scale: 'regular', credits: 1.0, grade: '98', year: 'Freshman' },
-  { id: uid(), name: 'Spanish 1', scale: 'regular', credits: 1.0, grade: '95', year: 'Freshman' },
-  { id: uid(), name: 'Health', scale: 'regular', credits: 0.5, grade: '99', year: 'Freshman' },
-  { id: uid(), name: 'Physical Education 1', scale: 'regular', credits: 0.5, grade: '100', year: 'Freshman' },
-
-  // Sophomore
-  { id: uid(), name: 'Honors English 10', scale: 'honors', credits: 1.0, grade: '93', year: 'Sophomore' },
-  { id: uid(), name: 'Honors Pre-Calculus', scale: 'honors', credits: 1.0, grade: '89', year: 'Sophomore' },
-  { id: uid(), name: 'Honors Chemistry', scale: 'honors', credits: 1.0, grade: '90', year: 'Sophomore' },
-  { id: uid(), name: 'AP European History', scale: 'ap_ccp', credits: 1.0, grade: '92', year: 'Sophomore' },
-  { id: uid(), name: 'Spanish 2', scale: 'regular', credits: 1.0, grade: '94', year: 'Sophomore' },
-  { id: uid(), name: 'Financial Literacy', scale: 'regular', credits: 0.5, grade: '98', year: 'Sophomore' },
-  { id: uid(), name: 'Physical Education 2', scale: 'regular', credits: 0.5, grade: '100', year: 'Sophomore' },
-
-  // Junior
-  { id: uid(), name: 'AP Language & Comp', scale: 'ap_ccp', credits: 1.0, grade: '91', year: 'Junior' },
-  { id: uid(), name: 'AP Calculus BC', scale: 'ap_ccp', credits: 1.0, grade: '95', year: 'Junior' },
-  { id: uid(), name: 'AP Physics C', scale: 'ap_ccp', credits: 1.0, grade: '88', year: 'Junior' },
-  { id: uid(), name: 'AP US History', scale: 'ap_ccp', credits: 1.0, grade: '94', year: 'Junior' },
-  { id: uid(), name: 'Honors Spanish 3', scale: 'honors', credits: 1.0, grade: '93', year: 'Junior' },
-  { id: uid(), name: 'Computer Science Principles', scale: 'regular', credits: 1.0, grade: '97', year: 'Junior' }
-];
-
-// ============================================================================
-// LocalStorage Persistence
-// ============================================================================
-function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state.courses));
-  } catch (e) {
-    console.error('Failed to save to localStorage', e);
-  }
-}
-
-function loadState() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        state.courses = parsed;
-        return;
-      }
-    }
-  } catch (e) {
-    console.error('Failed to load from localStorage', e);
-  }
-  state.courses = createDefaultStarterRows();
+function uid(prefix = 'c_') {
+  return prefix + Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
 }
 
 function createDefaultStarterRows() {
@@ -89,8 +43,564 @@ function createDefaultStarterRows() {
   ];
 }
 
-function hasMeaningfulUserData() {
-  return state.courses.some(c => (c.name && c.name.trim().length > 0) || (c.grade && String(c.grade).trim().length > 0));
+// Sample courses for quick demo if empty
+const SAMPLE_COURSES = [
+  { id: uid(), name: 'Honors English 9', scale: 'honors', credits: 1.0, grade: '94', year: 'Freshman' },
+  { id: uid(), name: 'Honors Algebra 2', scale: 'honors', credits: 1.0, grade: '96', year: 'Freshman' },
+  { id: uid(), name: 'Honors Biology', scale: 'honors', credits: 1.0, grade: '91', year: 'Freshman' },
+  { id: uid(), name: 'World History', scale: 'regular', credits: 1.0, grade: '98', year: 'Freshman' },
+  { id: uid(), name: 'Spanish 1', scale: 'regular', credits: 1.0, grade: '95', year: 'Freshman' },
+  { id: uid(), name: 'Health', scale: 'regular', credits: 0.5, grade: '99', year: 'Freshman' },
+  { id: uid(), name: 'Physical Education 1', scale: 'regular', credits: 0.5, grade: '100', year: 'Freshman' },
+  { id: uid(), name: 'Honors English 10', scale: 'honors', credits: 1.0, grade: '93', year: 'Sophomore' },
+  { id: uid(), name: 'Honors Pre-Calculus', scale: 'honors', credits: 1.0, grade: '89', year: 'Sophomore' },
+  { id: uid(), name: 'Honors Chemistry', scale: 'honors', credits: 1.0, grade: '90', year: 'Sophomore' },
+  { id: uid(), name: 'AP European History', scale: 'ap_ccp', credits: 1.0, grade: '92', year: 'Sophomore' },
+  { id: uid(), name: 'Spanish 2', scale: 'regular', credits: 1.0, grade: '94', year: 'Sophomore' },
+  { id: uid(), name: 'Financial Literacy', scale: 'regular', credits: 0.5, grade: '98', year: 'Sophomore' },
+  { id: uid(), name: 'Physical Education 2', scale: 'regular', credits: 0.5, grade: '100', year: 'Sophomore' },
+  { id: uid(), name: 'AP Language & Comp', scale: 'ap_ccp', credits: 1.0, grade: '91', year: 'Junior' },
+  { id: uid(), name: 'AP Calculus BC', scale: 'ap_ccp', credits: 1.0, grade: '95', year: 'Junior' },
+  { id: uid(), name: 'AP Physics C', scale: 'ap_ccp', credits: 1.0, grade: '88', year: 'Junior' },
+  { id: uid(), name: 'AP US History', scale: 'ap_ccp', credits: 1.0, grade: '94', year: 'Junior' },
+  { id: uid(), name: 'Honors Spanish 3', scale: 'honors', credits: 1.0, grade: '93', year: 'Junior' },
+  { id: uid(), name: 'Computer Science Principles', scale: 'regular', credits: 1.0, grade: '97', year: 'Junior' }
+];
+
+// ============================================================================
+// Local Storage & Snapshot Document State
+// ============================================================================
+function loadLocalData() {
+  try {
+    // 1. Load snapshots list
+    const rawSnapshots = localStorage.getItem(STORAGE_KEY_SNAPSHOTS);
+    if (rawSnapshots) {
+      snapshots = JSON.parse(rawSnapshots);
+    }
+
+    // 2. Load version histories map
+    const rawVersions = localStorage.getItem(STORAGE_KEY_VERSIONS);
+    if (rawVersions) {
+      versions = JSON.parse(rawVersions);
+    }
+
+    // 3. Backward compatibility with v1 storage
+    if (!snapshots || snapshots.length === 0) {
+      const v1SnapshotsRaw = localStorage.getItem('gpafinder_snapshots_v1');
+      const v1CoursesRaw = localStorage.getItem('gpafinder_courses_v1');
+
+      if (v1SnapshotsRaw) {
+        const v1Snaps = JSON.parse(v1SnapshotsRaw);
+        if (Array.isArray(v1Snaps) && v1Snaps.length > 0) {
+          snapshots = v1Snaps.map(s => ({
+            id: s.id || uid('snap_'),
+            name: s.name || 'Snapshot',
+            courses: s.courses || [],
+            metrics: s.metrics || calculateMetrics(s.courses || []),
+            createdAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
+            updatedAt: s.createdAt ? new Date(s.createdAt).getTime() : Date.now(),
+          }));
+        }
+      }
+
+      if (snapshots.length === 0) {
+        let initialCourses = createDefaultStarterRows();
+        if (v1CoursesRaw) {
+          try {
+            const parsed = JSON.parse(v1CoursesRaw);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              initialCourses = parsed;
+            }
+          } catch (_) {}
+        }
+
+        const initialSnapId = uid('snap_');
+        const now = Date.now();
+        const initialSnap = {
+          id: initialSnapId,
+          name: 'Main Schedule',
+          courses: initialCourses,
+          metrics: calculateMetrics(initialCourses),
+          createdAt: now,
+          updatedAt: now,
+        };
+        snapshots = [initialSnap];
+
+        // Create initial revision v1
+        versions[initialSnapId] = [
+          {
+            id: uid('ver_'),
+            versionNumber: 1,
+            name: 'Main Schedule',
+            note: 'Initial file creation',
+            courses: JSON.parse(JSON.stringify(initialCourses)),
+            metrics: calculateMetrics(initialCourses),
+            createdAt: now,
+          }
+        ];
+      }
+    }
+
+    // Ensure all snapshots have a versions entry
+    snapshots.forEach(s => {
+      if (!versions[s.id] || versions[s.id].length === 0) {
+        versions[s.id] = [
+          {
+            id: uid('ver_'),
+            versionNumber: 1,
+            name: s.name,
+            note: 'Initial snapshot state',
+            courses: JSON.parse(JSON.stringify(s.courses || [])),
+            metrics: s.metrics || calculateMetrics(s.courses || []),
+            createdAt: s.createdAt || Date.now(),
+          }
+        ];
+      }
+    });
+
+    // 4. Load or set active snapshot
+    const savedActiveId = localStorage.getItem(STORAGE_KEY_ACTIVE_SNAP);
+    const activeSnap = snapshots.find(s => s.id === savedActiveId) || snapshots[0];
+    state.activeSnapshotId = activeSnap.id;
+    state.courses = JSON.parse(JSON.stringify(activeSnap.courses || []));
+    state.hasUnsavedChanges = false;
+
+    saveLocalData();
+  } catch (e) {
+    console.error('Error loading local data', e);
+    initFallbackStarterState();
+  }
+}
+
+function initFallbackStarterState() {
+  const newSnapId = uid('snap_');
+  const now = Date.now();
+  const starterCourses = createDefaultStarterRows();
+  snapshots = [
+    {
+      id: newSnapId,
+      name: 'Main Schedule',
+      courses: starterCourses,
+      metrics: calculateMetrics(starterCourses),
+      createdAt: now,
+      updatedAt: now,
+    }
+  ];
+  versions = {
+    [newSnapId]: [
+      {
+        id: uid('ver_'),
+        versionNumber: 1,
+        name: 'Main Schedule',
+        note: 'Initial file creation',
+        courses: JSON.parse(JSON.stringify(starterCourses)),
+        metrics: calculateMetrics(starterCourses),
+        createdAt: now,
+      }
+    ]
+  };
+  state.activeSnapshotId = newSnapId;
+  state.courses = JSON.parse(JSON.stringify(starterCourses));
+  state.hasUnsavedChanges = false;
+  saveLocalData();
+}
+
+function saveLocalData() {
+  try {
+    localStorage.setItem(STORAGE_KEY_SNAPSHOTS, JSON.stringify(snapshots));
+    localStorage.setItem(STORAGE_KEY_VERSIONS, JSON.stringify(versions));
+    if (state.activeSnapshotId) {
+      localStorage.setItem(STORAGE_KEY_ACTIVE_SNAP, state.activeSnapshotId);
+    }
+    // Update active snapshot courses in snapshots array
+    const activeSnap = snapshots.find(s => s.id === state.activeSnapshotId);
+    if (activeSnap) {
+      activeSnap.courses = JSON.parse(JSON.stringify(state.courses));
+      activeSnap.metrics = calculateMetrics(state.courses);
+    }
+    localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(state.courses));
+  } catch (e) {
+    console.error('Failed to save to localStorage', e);
+  }
+  updateSnapshotBadge();
+  updateActiveSnapshotHeaderUI();
+}
+
+// ============================================================================
+// Save Engine & Version History Creation
+// ============================================================================
+export function markUnsavedChanges(dirty = true) {
+  state.hasUnsavedChanges = dirty;
+  updateSaveButtonUI();
+  updateActiveSnapshotHeaderUI();
+}
+
+export function saveActiveSnapshot(isManualVersion = true, versionNote = '') {
+  const activeSnap = snapshots.find(s => s.id === state.activeSnapshotId);
+  if (!activeSnap) return;
+
+  const now = Date.now();
+  const currentMetrics = calculateMetrics(state.courses);
+
+  activeSnap.courses = JSON.parse(JSON.stringify(state.courses));
+  activeSnap.metrics = currentMetrics;
+  activeSnap.updatedAt = now;
+
+  if (!versions[activeSnap.id]) {
+    versions[activeSnap.id] = [];
+  }
+
+  // Create a new version entry
+  const existingVersions = versions[activeSnap.id];
+  const nextVersionNum = existingVersions.length + 1;
+  const note = versionNote || (isManualVersion ? `Saved revision v${nextVersionNum}` : 'Auto save');
+
+  const newVersion = {
+    id: uid('ver_'),
+    versionNumber: nextVersionNum,
+    name: activeSnap.name,
+    note: note,
+    courses: JSON.parse(JSON.stringify(state.courses)),
+    metrics: currentMetrics,
+    createdAt: now,
+  };
+
+  versions[activeSnap.id].unshift(newVersion);
+  state.hasUnsavedChanges = false;
+  saveLocalData();
+  updateSaveButtonUI(true);
+
+  showToast(`Saved "${activeSnap.name}" (v${nextVersionNum})`);
+
+  // Cloud sync if authenticated
+  if (ConvexService.isAuthenticated() && ConvexService.isConfigured()) {
+    ConvexService.saveSnapshot({
+      id: activeSnap.id,
+      name: activeSnap.name,
+      courses: activeSnap.courses,
+      metrics: activeSnap.metrics,
+      createVersion: true,
+      versionNote: note,
+      updatedAt: now,
+    }).catch(err => {
+      console.warn('Background Convex save error', err);
+    });
+  }
+
+  return newVersion;
+}
+
+function updateSaveButtonUI(justSaved = false) {
+  const btnSave = document.getElementById('btn-save');
+  const label = document.getElementById('save-btn-text');
+  if (!btnSave || !label) return;
+
+  if (justSaved) {
+    btnSave.classList.remove('has-unsaved');
+    btnSave.classList.add('saved-pulse');
+    label.innerHTML = '<i class="fa-solid fa-check"></i> Saved';
+    setTimeout(() => {
+      btnSave.classList.remove('saved-pulse');
+      label.textContent = 'Save';
+    }, 1500);
+    return;
+  }
+
+  if (state.hasUnsavedChanges) {
+    btnSave.classList.add('has-unsaved');
+    label.textContent = 'Save *';
+    btnSave.title = 'You have unsaved changes (Ctrl+S / Cmd+S)';
+  } else {
+    btnSave.classList.remove('has-unsaved');
+    label.textContent = 'Save';
+    btnSave.title = 'Save snapshot (Ctrl+S / Cmd+S)';
+  }
+}
+
+function updateActiveSnapshotHeaderUI() {
+  const label = document.getElementById('active-snapshot-label');
+  const dirtyDot = document.getElementById('active-snap-dirty-dot');
+  const activeSnap = snapshots.find(s => s.id === state.activeSnapshotId);
+
+  if (label && activeSnap) {
+    label.textContent = activeSnap.name;
+  }
+  if (dirtyDot) {
+    dirtyDot.style.display = state.hasUnsavedChanges ? 'inline-block' : 'none';
+  }
+}
+
+// ============================================================================
+// Snapshot Document Management (Switch, Create, Rename, Delete)
+// ============================================================================
+export function switchSnapshot(targetSnapshotId) {
+  if (targetSnapshotId === state.activeSnapshotId) return;
+
+  const target = snapshots.find(s => s.id === targetSnapshotId);
+  if (!target) return;
+
+  if (state.hasUnsavedChanges) {
+    saveActiveSnapshot(false, 'Auto-saved before switching files');
+  }
+
+  pushHistory();
+  state.activeSnapshotId = target.id;
+  state.courses = JSON.parse(JSON.stringify(target.courses || []));
+  state.hasUnsavedChanges = false;
+  saveLocalData();
+  renderTable();
+  renderSnapshotList();
+  showToast(`Switched to "${target.name}"`);
+}
+
+export function createNewSnapshot(customName = '', cloneCurrent = false) {
+  const name = (customName && customName.trim().length > 0)
+    ? customName.trim()
+    : `Snapshot ${snapshots.length + 1}`;
+
+  const newCourses = cloneCurrent
+    ? JSON.parse(JSON.stringify(state.courses))
+    : createDefaultStarterRows();
+
+  const newId = uid('snap_');
+  const now = Date.now();
+  const metrics = calculateMetrics(newCourses);
+
+  const newSnapshot = {
+    id: newId,
+    name: name,
+    courses: newCourses,
+    metrics: metrics,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  snapshots.unshift(newSnapshot);
+  versions[newId] = [
+    {
+      id: uid('ver_'),
+      versionNumber: 1,
+      name: name,
+      note: cloneCurrent ? 'Cloned from active snapshot' : 'New file created',
+      courses: JSON.parse(JSON.stringify(newCourses)),
+      metrics: metrics,
+      createdAt: now,
+    }
+  ];
+
+  switchSnapshot(newId);
+  renderSnapshotList();
+  showToast(`Created snapshot "${name}"`);
+
+  if (ConvexService.isAuthenticated() && ConvexService.isConfigured()) {
+    ConvexService.saveSnapshot({
+      id: newId,
+      name: name,
+      courses: newCourses,
+      metrics: metrics,
+      createVersion: true,
+      versionNote: 'New file created',
+      updatedAt: now,
+    }).catch(console.warn);
+  }
+
+  return newSnapshot;
+}
+
+export function renameSnapshot(snapshotId, newName) {
+  const snap = snapshots.find(s => s.id === snapshotId);
+  if (!snap || !newName || !newName.trim()) return;
+
+  const cleanName = newName.trim();
+  snap.name = cleanName;
+  snap.updatedAt = Date.now();
+  saveLocalData();
+  renderSnapshotList();
+  updateActiveSnapshotHeaderUI();
+  showToast(`Renamed to "${cleanName}"`);
+
+  if (ConvexService.isAuthenticated() && ConvexService.isConfigured()) {
+    ConvexService.saveSnapshot({
+      id: snap.id,
+      name: cleanName,
+      courses: snap.courses,
+      metrics: snap.metrics,
+      createVersion: false,
+      updatedAt: snap.updatedAt,
+    }).catch(console.warn);
+  }
+}
+
+export function deleteSnapshot(snapshotId) {
+  if (snapshots.length <= 1) {
+    alert('You must have at least one snapshot file.');
+    return;
+  }
+
+  const target = snapshots.find(s => s.id === snapshotId);
+  const name = target ? target.name : 'Snapshot';
+
+  if (!confirm(`Are you sure you want to delete "${name}" and all its version history?`)) {
+    return;
+  }
+
+  snapshots = snapshots.filter(s => s.id !== snapshotId);
+  delete versions[snapshotId];
+
+  if (state.activeSnapshotId === snapshotId) {
+    state.activeSnapshotId = snapshots[0].id;
+    state.courses = JSON.parse(JSON.stringify(snapshots[0].courses || []));
+    state.hasUnsavedChanges = false;
+    renderTable();
+  }
+
+  saveLocalData();
+  renderSnapshotList();
+  showToast(`Deleted "${name}"`);
+
+  if (ConvexService.isAuthenticated() && ConvexService.isConfigured()) {
+    ConvexService.deleteSnapshot(snapshotId).catch(console.warn);
+  }
+}
+
+function updateSnapshotBadge() {
+  const badge = document.getElementById('snapshot-count-badge');
+  if (badge) {
+    badge.textContent = snapshots.length;
+  }
+}
+
+// ============================================================================
+// Version History Modal & Operations
+// ============================================================================
+export function openVersionHistoryModal(snapshotId = null) {
+  const targetId = snapshotId || state.activeSnapshotId;
+  const snap = snapshots.find(s => s.id === targetId);
+  if (!snap) return;
+
+  historyModalTargetSnapshotId = targetId;
+
+  const modal = document.getElementById('version-history-modal');
+  const title = document.getElementById('version-modal-title');
+  const subtitle = document.getElementById('version-modal-subtitle');
+
+  if (title) title.textContent = `Version History — ${snap.name}`;
+  if (subtitle) subtitle.textContent = `Revisions recorded for "${snap.name}". Click any version to restore.`;
+
+  renderVersionHistoryList(targetId);
+
+  if (modal) {
+    modal.style.display = 'flex';
+  }
+}
+
+export function closeVersionHistoryModal() {
+  const modal = document.getElementById('version-history-modal');
+  if (modal) modal.style.display = 'none';
+  historyModalTargetSnapshotId = null;
+}
+
+function renderVersionHistoryList(snapshotId) {
+  const container = document.getElementById('version-history-list');
+  const emptyState = document.getElementById('version-history-empty');
+  if (!container) return;
+
+  container.innerHTML = '';
+  const snapVersions = (versions[snapshotId] || []).slice().sort((a, b) => (b.versionNumber || 0) - (a.versionNumber || 0));
+
+  if (snapVersions.length === 0) {
+    if (emptyState) emptyState.style.display = 'block';
+    return;
+  }
+  if (emptyState) emptyState.style.display = 'none';
+
+  const activeSnap = snapshots.find(s => s.id === snapshotId);
+  const currentCoursesJson = JSON.stringify(activeSnap ? activeSnap.courses : []);
+
+  snapVersions.forEach((v, index) => {
+    const card = document.createElement('div');
+    card.className = 'version-card';
+
+    const isCurrent = JSON.stringify(v.courses) === currentCoursesJson && index === 0;
+    if (isCurrent) {
+      card.classList.add('is-current');
+    }
+
+    const dateStr = formatDateTime(v.createdAt);
+    const weightedGpaStr = v.metrics && v.metrics.weightedGpa !== undefined ? v.metrics.weightedGpa.toFixed(3) : '—';
+    const creditsStr = v.metrics && v.metrics.totalCredits !== undefined ? v.metrics.totalCredits.toFixed(1) : '0.0';
+    const coursesCount = (v.courses || []).length;
+
+    card.innerHTML = `
+      <div class="version-card-main">
+        <div class="version-header-line">
+          <span class="version-pill ${isCurrent ? 'current' : ''}">v${v.versionNumber || (snapVersions.length - index)}</span>
+          ${isCurrent ? '<span class="version-pill current">Current</span>' : ''}
+          <span class="version-time">${dateStr}</span>
+        </div>
+        <div class="version-note">${escapeHtml(v.note || 'Saved revision')}</div>
+        <div class="version-stats-row">
+          <span class="version-chip highlight">Weighted: ${weightedGpaStr}</span>
+          <span class="version-chip">${creditsStr} Credits</span>
+          <span class="version-chip">${coursesCount} classes</span>
+        </div>
+      </div>
+      <div class="version-actions">
+        <button class="btn-small ${isCurrent ? '' : 'btn-primary'} btn-restore-ver" data-ver-id="${v.id}" ${isCurrent ? 'disabled' : ''}>
+          ${isCurrent ? 'Active' : 'Restore'}
+        </button>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+export function restoreVersion(snapshotId, versionId) {
+  const snapVersions = versions[snapshotId];
+  if (!snapVersions) return;
+
+  const targetVer = snapVersions.find(v => v.id === versionId);
+  if (!targetVer) return;
+
+  if (confirm(`Restore revision v${targetVer.versionNumber} ("${targetVer.name}") from ${formatDateTime(targetVer.createdAt)}?`)) {
+    pushHistory();
+    const snap = snapshots.find(s => s.id === snapshotId);
+
+    // If restoring on active snapshot: update active courses
+    if (snapshotId === state.activeSnapshotId) {
+      state.courses = JSON.parse(JSON.stringify(targetVer.courses || []));
+      state.hasUnsavedChanges = false;
+      if (snap) {
+        snap.courses = JSON.parse(JSON.stringify(targetVer.courses || []));
+        snap.metrics = calculateMetrics(state.courses);
+        snap.updatedAt = Date.now();
+      }
+      renderTable();
+    } else {
+      if (snap) {
+        snap.courses = JSON.parse(JSON.stringify(targetVer.courses || []));
+        snap.metrics = calculateMetrics(snap.courses);
+        snap.updatedAt = Date.now();
+      }
+    }
+
+    saveLocalData();
+    closeVersionHistoryModal();
+    showToast(`Restored version v${targetVer.versionNumber}`);
+
+    if (ConvexService.isAuthenticated() && ConvexService.isConfigured() && snap) {
+      ConvexService.saveSnapshot({
+        id: snap.id,
+        name: snap.name,
+        courses: snap.courses,
+        metrics: snap.metrics,
+        createVersion: true,
+        versionNote: `Restored to v${targetVer.versionNumber}`,
+        updatedAt: snap.updatedAt,
+      }).catch(console.warn);
+    }
+  }
 }
 
 // ============================================================================
@@ -125,7 +635,8 @@ function undo() {
 
   isApplyingHistory = true;
   state.courses = JSON.parse(JSON.stringify(previousCourses));
-  saveState();
+  markUnsavedChanges(true);
+  saveLocalData();
   renderTable();
   isApplyingHistory = false;
   updateHistoryButtons();
@@ -142,7 +653,8 @@ function redo() {
 
   isApplyingHistory = true;
   state.courses = JSON.parse(JSON.stringify(nextCourses));
-  saveState();
+  markUnsavedChanges(true);
+  saveLocalData();
   renderTable();
   isApplyingHistory = false;
   updateHistoryButtons();
@@ -163,10 +675,20 @@ function setupKeyboardShortcuts() {
 
     const key = e.key.toLowerCase();
 
-    // Ctrl+Z or Cmd+Z
+    // Ctrl+S or Cmd+S -> Save Snapshot File
+    if (key === 's') {
+      e.preventDefault();
+      saveActiveSnapshot(true);
+      return;
+    }
+
+    // Ctrl+Z or Cmd+Z -> Undo / Redo
     if (key === 'z') {
-      if (document.activeElement && document.activeElement.id === 'dropdown-snapshot-input') {
-        return;
+      if (document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA')) {
+        // Let natural input undo work if focused in modal input
+        if (document.activeElement.id !== 'auth-username-input' && document.activeElement.id !== 'auth-password-input') {
+          // Allow table input undo handling
+        }
       }
       e.preventDefault();
       if (e.shiftKey) {
@@ -177,11 +699,8 @@ function setupKeyboardShortcuts() {
       return;
     }
 
-    // Ctrl+Shift+Z or Ctrl+Y or Cmd+Y
+    // Ctrl+Shift+Z or Ctrl+Y or Cmd+Y -> Redo
     if (key === 'y') {
-      if (document.activeElement && document.activeElement.id === 'dropdown-snapshot-input') {
-        return;
-      }
       e.preventDefault();
       redo();
       return;
@@ -190,207 +709,11 @@ function setupKeyboardShortcuts() {
 
   const btnUndo = document.getElementById('btn-undo');
   const btnRedo = document.getElementById('btn-redo');
+  const btnSave = document.getElementById('btn-save');
+
   if (btnUndo) btnUndo.addEventListener('click', undo);
   if (btnRedo) btnRedo.addEventListener('click', redo);
-}
-
-// ============================================================================
-// Snapshots Management
-// ============================================================================
-function loadSnapshots() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY_SNAPSHOTS);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        snapshots = parsed;
-        updateSnapshotBadge();
-        return;
-      }
-    }
-  } catch (e) {
-    console.error('Failed to load snapshots', e);
-  }
-  snapshots = [];
-  updateSnapshotBadge();
-}
-
-function saveSnapshots() {
-  try {
-    localStorage.setItem(STORAGE_KEY_SNAPSHOTS, JSON.stringify(snapshots));
-  } catch (e) {
-    console.error('Failed to save snapshots', e);
-  }
-  updateSnapshotBadge();
-}
-
-function updateSnapshotBadge() {
-  const badge = document.getElementById('snapshot-count-badge');
-  if (badge) {
-    badge.textContent = snapshots.length;
-  }
-}
-
-function createSnapshot(customName) {
-  const metrics = calculateMetrics(state.courses);
-  const now = new Date();
-  const dateStr = now.toLocaleDateString([], { month: 'short', day: 'numeric' });
-  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  const defaultName = `Snapshot ${snapshots.length + 1} (${dateStr} ${timeStr})`;
-  const name = (customName && customName.trim().length > 0) ? customName.trim() : defaultName;
-
-  const snapshot = {
-    id: 'snap_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
-    name: name,
-    createdAt: now.toISOString(),
-    courses: JSON.parse(JSON.stringify(state.courses)),
-    metrics: {
-      weightedGpa: metrics.cumulativeWeightedGpa,
-      unweightedGpa: metrics.cumulativeUnweightedGpa,
-      totalCredits: metrics.totalCredits,
-      validCoursesCount: metrics.validCoursesCount,
-      totalCoursesCount: state.courses.length
-    }
-  };
-
-  snapshots.unshift(snapshot);
-  saveSnapshots();
-  renderSnapshotList();
-  showToast(`Saved snapshot "${name}"`);
-  return snapshot;
-}
-
-function restoreSnapshot(snapshotId) {
-  const snapshot = snapshots.find(s => s.id === snapshotId);
-  if (!snapshot) return;
-
-  pushHistory();
-  state.courses = JSON.parse(JSON.stringify(snapshot.courses));
-  saveState();
-  renderTable();
-  showToast(`Restored snapshot "${snapshot.name}"`);
-}
-
-function deleteSnapshot(snapshotId) {
-  const target = snapshots.find(s => s.id === snapshotId);
-  const name = target ? target.name : 'Snapshot';
-  snapshots = snapshots.filter(s => s.id !== snapshotId);
-  saveSnapshots();
-  renderSnapshotList();
-  showToast(`Deleted "${name}"`);
-}
-
-function renderSnapshotList() {
-  const listContainer = document.getElementById('dropdown-snapshots-list');
-  const emptyState = document.getElementById('dropdown-snapshots-empty');
-  if (!listContainer) return;
-
-  listContainer.innerHTML = '';
-  if (snapshots.length === 0) {
-    if (emptyState) emptyState.style.display = 'block';
-    return;
-  }
-  if (emptyState) emptyState.style.display = 'none';
-
-  snapshots.forEach(snapshot => {
-    const item = document.createElement('div');
-    item.className = 'dropdown-snapshot-item';
-    item.dataset.id = snapshot.id;
-    item.title = `Restore "${snapshot.name}"`;
-
-    const formattedDate = formatSnapshotDate(snapshot.createdAt);
-    const weightedGpaStr = snapshot.metrics ? snapshot.metrics.weightedGpa.toFixed(3) : '—';
-    const creditsStr = snapshot.metrics ? snapshot.metrics.totalCredits.toFixed(1) : '0.0';
-
-    item.innerHTML = `
-      <div class="dropdown-snapshot-meta">
-        <span class="dropdown-snapshot-name">${escapeHtml(snapshot.name)}</span>
-        <span class="dropdown-snapshot-details">Weighted: ${weightedGpaStr} • ${creditsStr} cr • ${formattedDate}</span>
-      </div>
-      <div class="dropdown-snapshot-actions">
-        <button class="btn-dropdown-delete" data-id="${snapshot.id}" title="Delete snapshot">✕</button>
-      </div>
-    `;
-
-    listContainer.appendChild(item);
-  });
-}
-
-function formatSnapshotDate(isoString) {
-  if (!isoString) return '';
-  try {
-    const d = new Date(isoString);
-    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch (e) {
-    return isoString;
-  }
-}
-
-function setupSnapshotHandling() {
-  const saveBtn = document.getElementById('btn-dropdown-save-snapshot');
-  const nameInput = document.getElementById('dropdown-snapshot-input');
-  const listContainer = document.getElementById('dropdown-snapshots-list');
-  const snapshotsMenu = document.getElementById('snapshots-menu');
-  const toggleBtn = document.getElementById('btn-snapshots-toggle');
-
-  if (saveBtn && nameInput) {
-    const handleSave = () => {
-      const name = nameInput.value.trim();
-      createSnapshot(name);
-      nameInput.value = '';
-    };
-
-    saveBtn.addEventListener('click', e => {
-      e.stopPropagation();
-      handleSave();
-    });
-
-    nameInput.addEventListener('keydown', e => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        e.stopPropagation();
-        handleSave();
-      }
-    });
-  }
-
-  if (listContainer) {
-    listContainer.addEventListener('click', e => {
-      const deleteBtn = e.target.closest('.btn-dropdown-delete');
-      if (deleteBtn) {
-        e.stopPropagation();
-        const id = deleteBtn.dataset.id;
-        deleteSnapshot(id);
-        return;
-      }
-
-      const snapshotItem = e.target.closest('.dropdown-snapshot-item');
-      if (snapshotItem) {
-        const id = snapshotItem.dataset.id;
-        restoreSnapshot(id);
-        if (snapshotsMenu) snapshotsMenu.classList.remove('show');
-        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
-        return;
-      }
-    });
-  }
-}
-
-// ============================================================================
-// Toast Notification
-// ============================================================================
-function showToast(message) {
-  const container = document.getElementById('toast-container');
-  if (!container) return;
-  const toast = document.createElement('div');
-  toast.className = 'toast';
-  toast.textContent = message;
-  container.appendChild(toast);
-  setTimeout(() => {
-    if (toast.parentNode) {
-      toast.parentNode.removeChild(toast);
-    }
-  }, 3000);
+  if (btnSave) btnSave.addEventListener('click', () => saveActiveSnapshot(true));
 }
 
 // ============================================================================
@@ -446,12 +769,13 @@ function calculateMetrics(coursesList = state.courses) {
     cumulativeUnweightedGpa,
     validCoursesCount,
     yearResults,
-    weightedQualityPoints
+    weightedQualityPoints,
+    totalCoursesCount: coursesList.length,
   };
 }
 
 // ============================================================================
-// DOM Rendering & Updates
+// DOM Rendering & Table Updates
 // ============================================================================
 function updateStatsUI() {
   const metrics = calculateMetrics();
@@ -492,6 +816,8 @@ function updateStatsUI() {
 function renderTable() {
   const tbody = document.getElementById('spreadsheet-body');
   const emptyState = document.getElementById('empty-state');
+  if (!tbody) return;
+
   tbody.innerHTML = '';
 
   const filteredCourses = state.activeFilter === 'all'
@@ -499,9 +825,9 @@ function renderTable() {
     : state.courses.filter(c => c.year === state.activeFilter);
 
   if (filteredCourses.length === 0) {
-    emptyState.style.display = 'block';
+    if (emptyState) emptyState.style.display = 'block';
   } else {
-    emptyState.style.display = 'none';
+    if (emptyState) emptyState.style.display = 'none';
   }
 
   filteredCourses.forEach((course, index) => {
@@ -564,7 +890,7 @@ function renderTable() {
       </td>
       <td class="col-computed">${totalEarnedPoints}</td>
       <td class="col-actions">
-        <button class="btn-delete-row" title="Delete">✕</button>
+        <button class="btn-delete-row" title="Delete"><i class="fa-solid fa-xmark"></i></button>
       </td>
     `;
 
@@ -575,21 +901,38 @@ function renderTable() {
   updateHistoryButtons();
 }
 
-function escapeHtml(str) {
-  if (!str) return '';
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
+function updateRowComputed(tr, course) {
+  const pointsPerCredit = calculateGpaPoints(course.grade, course.scale);
+  const credits = parseFloat(course.credits) || 0;
+  const totalEarnedPoints = (pointsPerCredit !== null && credits > 0)
+    ? (pointsPerCredit * credits).toFixed(2)
+    : '—';
+
+  const computedCell = tr.querySelector('.col-computed');
+  if (computedCell) {
+    computedCell.textContent = totalEarnedPoints;
+  }
+
+  // Update tier badge
+  const group = tr.querySelector('.grade-input-group');
+  if (group) {
+    const oldBadge = group.querySelector('.grade-badge-slot');
+    if (oldBadge) oldBadge.remove();
+
+    const tier = getTierForGrade(course.grade);
+    if (tier) {
+      const badgeText = `${tier.grade} (${(pointsPerCredit || 0).toFixed(2)})`;
+      const span = document.createElement('span');
+      span.className = 'grade-badge-slot';
+      span.innerHTML = `<span class="tier-badge">${badgeText}</span>`;
+      group.appendChild(span);
+    }
+  }
 }
 
-// ============================================================================
-// Table Event Handlers & Inline Editing
-// ============================================================================
 function attachTableEvents() {
   const tbody = document.getElementById('spreadsheet-body');
+  if (!tbody) return;
 
   tbody.addEventListener('focusin', e => {
     if (e.target.classList.contains('cell-input')) {
@@ -611,10 +954,12 @@ function attachTableEvents() {
 
     if (e.target.classList.contains('field-name')) {
       course.name = e.target.value;
-      saveState();
+      markUnsavedChanges(true);
+      saveLocalData();
     } else if (e.target.classList.contains('field-grade')) {
       course.grade = e.target.value;
-      saveState();
+      markUnsavedChanges(true);
+      saveLocalData();
       updateRowComputed(tr, course);
       updateStatsUI();
     }
@@ -630,19 +975,22 @@ function attachTableEvents() {
     if (e.target.classList.contains('field-scale')) {
       pushHistory();
       course.scale = e.target.value;
-      saveState();
+      markUnsavedChanges(true);
+      saveLocalData();
       updateRowComputed(tr, course);
       updateStatsUI();
     } else if (e.target.classList.contains('field-credits')) {
       pushHistory();
       course.credits = parseFloat(e.target.value) || 1.0;
-      saveState();
+      markUnsavedChanges(true);
+      saveLocalData();
       updateRowComputed(tr, course);
       updateStatsUI();
     } else if (e.target.classList.contains('field-year')) {
       pushHistory();
       course.year = e.target.value;
-      saveState();
+      markUnsavedChanges(true);
+      saveLocalData();
       if (state.activeFilter !== 'all' && course.year !== state.activeFilter) {
         renderTable();
       } else {
@@ -658,12 +1006,13 @@ function attachTableEvents() {
       const id = tr.dataset.id;
       pushHistory();
       state.courses = state.courses.filter(c => c.id !== id);
-      saveState();
+      markUnsavedChanges(true);
+      saveLocalData();
       renderTable();
     }
   });
 
-  // Keyboard navigation
+  // Enter moves down or adds row
   tbody.addEventListener('keydown', e => {
     if (e.key === 'Enter') {
       e.preventDefault();
@@ -678,38 +1027,6 @@ function attachTableEvents() {
   });
 }
 
-function updateRowComputed(tr, course) {
-  const pointsPerCredit = calculateGpaPoints(course.grade, course.scale);
-  const credits = parseFloat(course.credits) || 0;
-  const totalEarnedPoints = (pointsPerCredit !== null && credits > 0)
-    ? (pointsPerCredit * credits).toFixed(2)
-    : '—';
-
-  const computedCell = tr.querySelector('.col-computed');
-  if (computedCell) {
-    computedCell.textContent = totalEarnedPoints;
-  }
-
-  // Update badge
-  const group = tr.querySelector('.grade-input-group');
-  if (group) {
-    const oldBadge = group.querySelector('.grade-badge-slot');
-    if (oldBadge) oldBadge.remove();
-
-    const tier = getTierForGrade(course.grade);
-    if (tier) {
-      const badgeText = `${tier.grade} (${(pointsPerCredit || 0).toFixed(2)})`;
-      const span = document.createElement('span');
-      span.className = 'grade-badge-slot';
-      span.innerHTML = `<span class="tier-badge">${badgeText}</span>`;
-      group.appendChild(span);
-    }
-  }
-}
-
-// ============================================================================
-// Actions (Add Row, Add 5, Filter, CSV Export/Import)
-// ============================================================================
 function addNewRow(year = null) {
   pushHistory();
   const defaultYear = year || (state.activeFilter !== 'all' ? state.activeFilter : 'Freshman');
@@ -722,7 +1039,8 @@ function addNewRow(year = null) {
     year: defaultYear
   };
   state.courses.push(newCourse);
-  saveState();
+  markUnsavedChanges(true);
+  saveLocalData();
   renderTable();
 
   setTimeout(() => {
@@ -735,23 +1053,496 @@ function addNewRow(year = null) {
   }, 30);
 }
 
+// ============================================================================
+// Snapshots Dropdown UI Render
+// ============================================================================
+function renderSnapshotList() {
+  const listContainer = document.getElementById('dropdown-snapshots-list');
+  const emptyState = document.getElementById('dropdown-snapshots-empty');
+  if (!listContainer) return;
+
+  listContainer.innerHTML = '';
+  if (snapshots.length === 0) {
+    if (emptyState) emptyState.style.display = 'block';
+    return;
+  }
+  if (emptyState) emptyState.style.display = 'none';
+
+  snapshots.forEach(snapshot => {
+    const item = document.createElement('div');
+    const isActive = snapshot.id === state.activeSnapshotId;
+    item.className = `dropdown-snapshot-item ${isActive ? 'active' : ''}`;
+    item.dataset.id = snapshot.id;
+
+    const formattedDate = formatDateTime(snapshot.updatedAt || snapshot.createdAt);
+    const weightedGpaStr = snapshot.metrics && snapshot.metrics.weightedGpa !== undefined
+      ? snapshot.metrics.weightedGpa.toFixed(3)
+      : '—';
+    const creditsStr = snapshot.metrics && snapshot.metrics.totalCredits !== undefined
+      ? snapshot.metrics.totalCredits.toFixed(1)
+      : '0.0';
+
+    const snapVers = versions[snapshot.id] || [];
+    const verCount = snapVers.length;
+
+    item.innerHTML = `
+      <div class="dropdown-snapshot-meta">
+        <span class="dropdown-snapshot-name">
+          ${isActive ? '<i class="fa-solid fa-check active-check"></i> ' : ''}${escapeHtml(snapshot.name)}
+        </span>
+        <span class="dropdown-snapshot-details">Weighted: ${weightedGpaStr} • ${creditsStr} cr • v${verCount} • ${formattedDate}</span>
+      </div>
+      <div class="dropdown-snapshot-actions">
+        <button class="btn-snap-history" data-id="${snapshot.id}" title="Version history"><i class="fa-solid fa-clock-rotate-left"></i></button>
+        <button class="btn-snap-rename" data-id="${snapshot.id}" title="Rename"><i class="fa-solid fa-pen-to-square"></i></button>
+        <button class="btn-dropdown-delete" data-id="${snapshot.id}" title="Delete file"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    `;
+
+    listContainer.appendChild(item);
+  });
+}
+
+function setupSnapshotHandling() {
+  const saveBtn = document.getElementById('btn-dropdown-save-snapshot');
+  const nameInput = document.getElementById('dropdown-snapshot-input');
+  const listContainer = document.getElementById('dropdown-snapshots-list');
+  const snapshotsMenu = document.getElementById('snapshots-menu');
+  const toggleBtn = document.getElementById('btn-snapshots-toggle');
+
+  const btnActiveRename = document.getElementById('btn-active-rename');
+  const btnActiveHistory = document.getElementById('btn-active-history');
+
+  if (btnActiveRename) {
+    btnActiveRename.addEventListener('click', e => {
+      e.stopPropagation();
+      openRenameModal(state.activeSnapshotId);
+      if (snapshotsMenu) snapshotsMenu.classList.remove('show');
+    });
+  }
+
+  if (btnActiveHistory) {
+    btnActiveHistory.addEventListener('click', e => {
+      e.stopPropagation();
+      openVersionHistoryModal(state.activeSnapshotId);
+      if (snapshotsMenu) snapshotsMenu.classList.remove('show');
+    });
+  }
+
+  if (saveBtn && nameInput) {
+    const handleCreate = () => {
+      const name = nameInput.value.trim();
+      createNewSnapshot(name, false);
+      nameInput.value = '';
+    };
+
+    saveBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      handleCreate();
+    });
+
+    nameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleCreate();
+      }
+    });
+  }
+
+  if (listContainer) {
+    listContainer.addEventListener('click', e => {
+      const deleteBtn = e.target.closest('.btn-dropdown-delete');
+      if (deleteBtn) {
+        e.stopPropagation();
+        const id = deleteBtn.dataset.id;
+        deleteSnapshot(id);
+        return;
+      }
+
+      const historyBtn = e.target.closest('.btn-snap-history');
+      if (historyBtn) {
+        e.stopPropagation();
+        const id = historyBtn.dataset.id;
+        openVersionHistoryModal(id);
+        if (snapshotsMenu) snapshotsMenu.classList.remove('show');
+        return;
+      }
+
+      const renameBtn = e.target.closest('.btn-snap-rename');
+      if (renameBtn) {
+        e.stopPropagation();
+        const id = renameBtn.dataset.id;
+        openRenameModal(id);
+        if (snapshotsMenu) snapshotsMenu.classList.remove('show');
+        return;
+      }
+
+      const item = e.target.closest('.dropdown-snapshot-item');
+      if (item) {
+        const id = item.dataset.id;
+        switchSnapshot(id);
+        if (snapshotsMenu) snapshotsMenu.classList.remove('show');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+      }
+    });
+  }
+}
+
+// ============================================================================
+// Rename Snapshot Modal
+// ============================================================================
+function openRenameModal(snapshotId) {
+  const snap = snapshots.find(s => s.id === snapshotId);
+  if (!snap) return;
+
+  renameTargetSnapshotId = snapshotId;
+  const modal = document.getElementById('rename-modal');
+  const input = document.getElementById('rename-input');
+
+  if (input) {
+    input.value = snap.name;
+  }
+  if (modal) {
+    modal.style.display = 'flex';
+    setTimeout(() => {
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }, 50);
+  }
+}
+
+function closeRenameModal() {
+  const modal = document.getElementById('rename-modal');
+  if (modal) modal.style.display = 'none';
+  renameTargetSnapshotId = null;
+}
+
+function setupRenameModalEvents() {
+  const modal = document.getElementById('rename-modal');
+  const closeBtn = document.getElementById('btn-close-rename-modal');
+  const cancelBtn = document.getElementById('btn-cancel-rename');
+  const confirmBtn = document.getElementById('btn-confirm-rename');
+  const input = document.getElementById('rename-input');
+
+  const doRename = () => {
+    if (renameTargetSnapshotId && input) {
+      renameSnapshot(renameTargetSnapshotId, input.value);
+    }
+    closeRenameModal();
+  };
+
+  if (closeBtn) closeBtn.addEventListener('click', closeRenameModal);
+  if (cancelBtn) cancelBtn.addEventListener('click', closeRenameModal);
+  if (confirmBtn) confirmBtn.addEventListener('click', doRename);
+
+  if (input) {
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        doRename();
+      } else if (e.key === 'Escape') {
+        closeRenameModal();
+      }
+    });
+  }
+}
+
+// ============================================================================
+// Version History Modal Setup
+// ============================================================================
+function setupVersionModalEvents() {
+  const closeBtn = document.getElementById('btn-close-version-modal');
+  const doneBtn = document.getElementById('btn-version-modal-done');
+  const saveCurrentBtn = document.getElementById('btn-version-save-current');
+  const listContainer = document.getElementById('version-history-list');
+
+  if (closeBtn) closeBtn.addEventListener('click', closeVersionHistoryModal);
+  if (doneBtn) doneBtn.addEventListener('click', closeVersionHistoryModal);
+
+  if (saveCurrentBtn) {
+    saveCurrentBtn.addEventListener('click', () => {
+      const targetId = historyModalTargetSnapshotId || state.activeSnapshotId;
+      if (targetId === state.activeSnapshotId) {
+        saveActiveSnapshot(true, 'Manual revision checkpoint');
+        renderVersionHistoryList(targetId);
+      }
+    });
+  }
+
+  if (listContainer) {
+    listContainer.addEventListener('click', e => {
+      const restoreBtn = e.target.closest('.btn-restore-ver');
+      if (restoreBtn && historyModalTargetSnapshotId) {
+        const verId = restoreBtn.dataset.verId;
+        restoreVersion(historyModalTargetSnapshotId, verId);
+      }
+    });
+  }
+}
+
+// ============================================================================
+// Convex Cloud Sync & Auth Integration
+// ============================================================================
+function setupCloudAuthUI() {
+  const authModal = document.getElementById('auth-modal');
+  const openModalBtn = document.getElementById('btn-auth-open-modal');
+  const closeAuthBtn = document.getElementById('btn-close-auth-modal');
+
+  const tabLogin = document.getElementById('tab-auth-login');
+  const tabRegister = document.getElementById('tab-auth-register');
+  const authForm = document.getElementById('auth-form');
+  const submitBtn = document.getElementById('btn-auth-submit');
+  const errorMsg = document.getElementById('auth-error-msg');
+  const successMsg = document.getElementById('auth-success-msg');
+
+  const btnSyncNow = document.getElementById('btn-auth-sync-now');
+  const btnLogout = document.getElementById('btn-auth-logout');
+
+  let authMode = 'login'; // 'login' | 'register'
+
+  // Update header status dot & label
+  ConvexService.onSyncStateChange((status, message) => {
+    updateCloudStatusUI(status, message);
+  });
+
+  const updateCloudStatusUI = (status, message = '') => {
+    const dot = document.getElementById('auth-status-dot');
+    const label = document.getElementById('auth-btn-label');
+    const guestSection = document.getElementById('auth-menu-guest');
+    const userSection = document.getElementById('auth-menu-user');
+    const usernameDisplay = document.getElementById('auth-menu-username');
+    const syncDesc = document.getElementById('auth-sync-status-desc');
+
+    if (!dot || !label) return;
+
+    dot.className = `status-dot ${status}`;
+
+    if (ConvexService.isAuthenticated()) {
+      const user = ConvexService.getUser();
+      const name = user ? user.username : 'User';
+      label.innerHTML = `<i class="fa-solid fa-cloud"></i> ${escapeHtml(name)}`;
+      if (guestSection) guestSection.style.display = 'none';
+      if (userSection) userSection.style.display = 'block';
+      if (usernameDisplay) usernameDisplay.innerHTML = `<i class="fa-solid fa-user"></i> ${escapeHtml(name)}`;
+      if (syncDesc) {
+        if (status === 'syncing') syncDesc.textContent = 'Syncing changes...';
+        else if (status === 'error') syncDesc.textContent = message || 'Sync error';
+        else syncDesc.textContent = message || 'Synced with cloud';
+      }
+    } else {
+      label.innerHTML = `<i class="fa-solid fa-cloud"></i> Sign In / Sync`;
+      if (guestSection) guestSection.style.display = 'block';
+      if (userSection) userSection.style.display = 'none';
+    }
+  };
+
+  // Open Auth modal
+  const openAuthModal = (mode = 'login') => {
+    authMode = mode;
+    if (tabLogin && tabRegister) {
+      if (mode === 'login') {
+        tabLogin.classList.add('active');
+        tabRegister.classList.remove('active');
+        if (submitBtn) submitBtn.textContent = 'Sign In';
+      } else {
+        tabRegister.classList.add('active');
+        tabLogin.classList.remove('active');
+        if (submitBtn) submitBtn.textContent = 'Create Account';
+      }
+    }
+    if (errorMsg) errorMsg.style.display = 'none';
+    if (successMsg) successMsg.style.display = 'none';
+
+    if (authModal) authModal.style.display = 'flex';
+  };
+
+  const closeAuthModal = () => {
+    if (authModal) authModal.style.display = 'none';
+  };
+
+  if (openModalBtn) {
+    openModalBtn.addEventListener('click', () => {
+      const authMenu = document.getElementById('auth-menu');
+      if (authMenu) authMenu.classList.remove('show');
+      openAuthModal('login');
+    });
+  }
+
+  if (closeAuthBtn) closeAuthBtn.addEventListener('click', closeAuthModal);
+
+  if (tabLogin) {
+    tabLogin.addEventListener('click', () => {
+      authMode = 'login';
+      tabLogin.classList.add('active');
+      tabRegister.classList.remove('active');
+      if (submitBtn) submitBtn.textContent = 'Sign In';
+      if (errorMsg) errorMsg.style.display = 'none';
+    });
+  }
+
+  if (tabRegister) {
+    tabRegister.addEventListener('click', () => {
+      authMode = 'register';
+      tabRegister.classList.add('active');
+      tabLogin.classList.remove('active');
+      if (submitBtn) submitBtn.textContent = 'Create Account';
+      if (errorMsg) errorMsg.style.display = 'none';
+    });
+  }
+
+  // Handle Auth Submit
+  if (authForm) {
+    authForm.addEventListener('submit', async e => {
+      e.preventDefault();
+      const usernameInput = document.getElementById('auth-username-input');
+      const passwordInput = document.getElementById('auth-password-input');
+
+      const username = usernameInput ? usernameInput.value.trim() : '';
+      const password = passwordInput ? passwordInput.value : '';
+
+      if (!ConvexService.isConfigured()) {
+        if (errorMsg) {
+          errorMsg.textContent = 'Cloud service is currently initializing. Please configure CONVEX_URL in config.js.';
+          errorMsg.style.display = 'block';
+        }
+        return;
+      }
+
+      if (submitBtn) submitBtn.disabled = true;
+      if (errorMsg) errorMsg.style.display = 'none';
+      if (successMsg) successMsg.style.display = 'none';
+
+      try {
+        if (authMode === 'register') {
+          await ConvexService.register(username, password);
+        } else {
+          await ConvexService.login(username, password);
+        }
+
+        if (successMsg) {
+          successMsg.textContent = 'Success! Syncing data across devices...';
+          successMsg.style.display = 'block';
+        }
+
+        // Trigger smart sync with cloud
+        await performFullCloudSync();
+
+        setTimeout(() => {
+          closeAuthModal();
+          if (submitBtn) submitBtn.disabled = false;
+          showToast(`Welcome, ${username}! Sync enabled.`);
+        }, 600);
+      } catch (err) {
+        console.error('Auth error', err);
+        if (errorMsg) {
+          errorMsg.textContent = err.message || 'Authentication failed. Please check your username and password.';
+          errorMsg.style.display = 'block';
+        }
+        if (submitBtn) submitBtn.disabled = false;
+      }
+    });
+  }
+
+  // Sync Now Button
+  if (btnSyncNow) {
+    btnSyncNow.addEventListener('click', async () => {
+      const authMenu = document.getElementById('auth-menu');
+      if (authMenu) authMenu.classList.remove('show');
+      showToast('Syncing with cloud...');
+      await performFullCloudSync();
+    });
+  }
+
+  // Logout Button
+  if (btnLogout) {
+    btnLogout.addEventListener('click', async () => {
+      const authMenu = document.getElementById('auth-menu');
+      if (authMenu) authMenu.classList.remove('show');
+      ConvexService.stopBackgroundSync();
+      await ConvexService.logout();
+      updateCloudStatusUI('offline', 'Signed out');
+      showToast('Signed out. Local data preserved.');
+    });
+  }
+}
+
+// ============================================================================
+// Full Cloud Synchronization Engine (Smart Merge with Zero Data Loss)
+// ============================================================================
+async function performFullCloudSync() {
+  if (!ConvexService.isAuthenticated() || !ConvexService.isConfigured()) return;
+
+  try {
+    // Flatten local version histories for sync
+    const allLocalVersions = [];
+    for (const [snapId, verList] of Object.entries(versions)) {
+      if (Array.isArray(verList)) {
+        verList.forEach(v => {
+          allLocalVersions.push({
+            clientSnapshotId: snapId,
+            versionNumber: v.versionNumber || 1,
+            name: v.name || 'Snapshot',
+            note: v.note || '',
+            courses: v.courses || [],
+            metrics: v.metrics || null,
+            createdAt: v.createdAt || Date.now(),
+          });
+        });
+      }
+    }
+
+    const syncResult = await ConvexService.smartSync(snapshots, allLocalVersions, state.activeSnapshotId);
+
+    if (syncResult && Array.isArray(syncResult.snapshots) && syncResult.snapshots.length > 0) {
+      snapshots = syncResult.snapshots;
+      if (syncResult.versions) {
+        versions = syncResult.versions;
+      }
+
+      if (syncResult.activeSnapshotId) {
+        const found = snapshots.find(s => s.id === syncResult.activeSnapshotId);
+        if (found) {
+          state.activeSnapshotId = found.id;
+          state.courses = JSON.parse(JSON.stringify(found.courses || []));
+        }
+      }
+
+      saveLocalData();
+      renderTable();
+      renderSnapshotList();
+    }
+  } catch (err) {
+    console.error('Smart sync error', err);
+  }
+}
+
+// ============================================================================
+// Toolbar, Tabs & Dropdowns
+// ============================================================================
 function setupToolbarAndTabs() {
-  document.getElementById('btn-add-row').addEventListener('click', () => addNewRow());
-  document.getElementById('btn-empty-add').addEventListener('click', () => addNewRow());
+  const addBtn = document.getElementById('btn-add-row');
+  const emptyAddBtn = document.getElementById('btn-empty-add');
+  if (addBtn) addBtn.addEventListener('click', () => addNewRow());
+  if (emptyAddBtn) emptyAddBtn.addEventListener('click', () => addNewRow());
 
   const clearAllBtn = document.getElementById('btn-clear-all');
   if (clearAllBtn) {
     clearAllBtn.addEventListener('click', () => {
-      if (!hasMeaningfulUserData() || confirm('Are you sure you want to clear all classes?')) {
+      if (state.courses.length === 0) return;
+      if (confirm('Are you sure you want to clear all classes in the current snapshot?')) {
         pushHistory();
         state.courses = [];
-        saveState();
+        markUnsavedChanges(true);
+        saveLocalData();
         renderTable();
       }
     });
   }
 
-  // Year filter tabs
+  // Filter tabs
   const tabButtons = document.querySelectorAll('.tab-btn');
   tabButtons.forEach(btn => {
     btn.addEventListener('click', () => {
@@ -764,12 +1555,13 @@ function setupToolbarAndTabs() {
 }
 
 function setupDropdownHandling() {
-  const dropdowns = [
+  const dropdownConfigs = [
     { dropdown: document.getElementById('snapshots-dropdown'), toggle: document.getElementById('btn-snapshots-toggle'), menu: document.getElementById('snapshots-menu') },
+    { dropdown: document.getElementById('auth-dropdown'), toggle: document.getElementById('btn-auth-toggle'), menu: document.getElementById('auth-menu') },
     { dropdown: document.getElementById('actions-dropdown'), toggle: document.getElementById('btn-dropdown-toggle'), menu: document.getElementById('dropdown-menu') }
   ];
 
-  dropdowns.forEach(({ dropdown, toggle, menu }) => {
+  dropdownConfigs.forEach(({ dropdown, toggle, menu }) => {
     if (!dropdown || !toggle || !menu) return;
 
     toggle.addEventListener('click', e => {
@@ -777,7 +1569,7 @@ function setupDropdownHandling() {
       const isOpen = menu.classList.contains('show');
 
       // Close all other dropdowns
-      dropdowns.forEach(d => {
+      dropdownConfigs.forEach(d => {
         if (d.menu) {
           d.menu.classList.remove('show');
           if (d.toggle) d.toggle.setAttribute('aria-expanded', 'false');
@@ -790,9 +1582,7 @@ function setupDropdownHandling() {
         if (dropdown.id === 'snapshots-dropdown') {
           renderSnapshotList();
           const input = document.getElementById('dropdown-snapshot-input');
-          if (input) {
-            setTimeout(() => input.focus(), 50);
-          }
+          if (input) setTimeout(() => input.focus(), 50);
         }
       }
     });
@@ -800,7 +1590,7 @@ function setupDropdownHandling() {
 
   // Global click outside to close dropdowns
   document.addEventListener('click', e => {
-    dropdowns.forEach(({ dropdown, toggle, menu }) => {
+    dropdownConfigs.forEach(({ dropdown, toggle, menu }) => {
       if (dropdown && menu && !dropdown.contains(e.target)) {
         menu.classList.remove('show');
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
@@ -808,17 +1598,21 @@ function setupDropdownHandling() {
     });
   });
 
-  // Escape key closes dropdowns
+  // Escape closes dropdowns and modals
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') {
-      dropdowns.forEach(({ toggle, menu }) => {
+      dropdownConfigs.forEach(({ toggle, menu }) => {
         if (menu) menu.classList.remove('show');
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
       });
+      closeVersionHistoryModal();
+      closeRenameModal();
+      const authModal = document.getElementById('auth-modal');
+      if (authModal) authModal.style.display = 'none';
     }
   });
 
-  // Actions menu items click close menu
+  // Actions menu auto close on action item click
   const actionsMenu = document.getElementById('dropdown-menu');
   if (actionsMenu) {
     actionsMenu.querySelectorAll('.dropdown-item').forEach(item => {
@@ -853,19 +1647,21 @@ function renderScaleReferenceTable() {
 }
 
 // ============================================================================
-// Multi-Format Intelligent CSV Export & Import
+// CSV Export & Import
 // ============================================================================
 function setupCsvHandling() {
   const exportBtn = document.getElementById('btn-export-csv');
   const importInput = document.getElementById('csv-file-input');
 
-  // Export CSV
   if (exportBtn) {
     exportBtn.addEventListener('click', () => {
       if (state.courses.length === 0) {
         alert('No courses to export.');
         return;
       }
+
+      const activeSnap = snapshots.find(s => s.id === state.activeSnapshotId);
+      const safeTitle = (activeSnap ? activeSnap.name : 'GPA_Planner').replace(/[^a-zA-Z0-9_-]/g, '_');
 
       const headers = ['Class Name', 'Credits', 'Scale', 'Grade', 'Year'];
       const rows = state.courses.map(c => {
@@ -884,7 +1680,7 @@ function setupCsvHandling() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `GPA_Planner_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.download = `${safeTitle}_${new Date().toISOString().slice(0, 10)}.csv`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -892,7 +1688,6 @@ function setupCsvHandling() {
     });
   }
 
-  // Import CSV via file upload
   if (importInput) {
     importInput.addEventListener('change', e => {
       const file = e.target.files[0];
@@ -907,11 +1702,12 @@ function setupCsvHandling() {
           if (parsedCourses.length > 0) {
             pushHistory();
             state.courses = parsedCourses;
-            saveState();
+            markUnsavedChanges(true);
+            saveLocalData();
             renderTable();
             showToast(`Imported ${parsedCourses.length} classes`);
           } else {
-            alert('Could not parse valid course rows from CSV. Please check the file formatting.');
+            alert('Could not parse valid course rows from CSV. Please check the file format.');
           }
         } catch (err) {
           console.error(err);
@@ -924,11 +1720,6 @@ function setupCsvHandling() {
   }
 }
 
-/**
- * Parses both Google Sheets exports and standard GPA app exports:
- * Format 1: [Class Name, Credits (0.5/1), Scale (5.33/4.83/4.33), Grade (95%), Year (Junior)] with cascading year!
- * Format 2: [Class Name, Scale (ap_ccp/honors/regular), Credits (1.0), Grade, Year]
- */
 export function parseMultiFormatCsv(csvText) {
   const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0);
   if (lines.length === 0) return [];
@@ -936,7 +1727,6 @@ export function parseMultiFormatCsv(csvText) {
   const rawRows = lines.map(line => parseCsvLine(line));
   if (rawRows.length === 0) return [];
 
-  // Detect whether row 0 is a header
   let startIndex = 0;
   const firstRowStr = rawRows[0].join(' ').toLowerCase();
   const isHeader = firstRowStr.includes('class') || 
@@ -945,14 +1735,11 @@ export function parseMultiFormatCsv(csvText) {
                    firstRowStr.includes('scale') || 
                    firstRowStr.includes('grade');
 
-  if (isHeader) {
-    startIndex = 1;
-  }
+  if (isHeader) startIndex = 1;
 
   const newCourses = [];
   let currentYear = 'Freshman';
 
-  // First pass: detect years present in the sheet
   for (let i = startIndex; i < rawRows.length; i++) {
     const cols = rawRows[i];
     if (cols.length >= 4) {
@@ -1080,19 +1867,73 @@ function parseCsvLine(text) {
 }
 
 // ============================================================================
-// Initialization
+// Utilities
 // ============================================================================
-function init() {
-  loadState();
-  loadSnapshots();
+function showToast(message) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 3000);
+}
+
+function formatDateTime(timestamp) {
+  if (!timestamp) return '';
+  try {
+    const d = new Date(timestamp);
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return String(timestamp);
+  }
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+// ============================================================================
+// App Initialization
+// ============================================================================
+async function init() {
+  loadLocalData();
   renderScaleReferenceTable();
   setupToolbarAndTabs();
   setupDropdownHandling();
   setupKeyboardShortcuts();
   setupSnapshotHandling();
+  setupRenameModalEvents();
+  setupVersionModalEvents();
+  setupCloudAuthUI();
   attachTableEvents();
   setupCsvHandling();
   renderTable();
+
+  // Check cloud session & start background sync if logged in
+  if (ConvexService.isAuthenticated() && ConvexService.isConfigured()) {
+    try {
+      const user = await ConvexService.checkSession();
+      if (user) {
+        await performFullCloudSync();
+        ConvexService.startBackgroundSync(async () => {
+          await performFullCloudSync();
+        }, 15000);
+      }
+    } catch (e) {
+      console.warn('Initial session check error', e);
+    }
+  }
 }
 
 if (typeof window !== 'undefined') {

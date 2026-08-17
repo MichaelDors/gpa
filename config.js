@@ -176,3 +176,19 @@ export function calculateUnweightedPoints(gradeInput) {
   if (!tier) return null;
   return tier.regular;
 }
+
+/**
+ * ============================================================================
+ * CONVEX BACKEND CONFIGURATION
+ * ============================================================================
+ * Set your hosted Convex project deployment URL here.
+ * Example: 'https://joyful-capybara-123.convex.cloud'
+ * ============================================================================
+ */
+export const CONVEX_URL = 'https://tremendous-tiger-513.convex.cloud';
+
+export function getConvexUrl() {
+  return (CONVEX_URL || '').trim().replace(/\/+$/, '');
+}
+
+
