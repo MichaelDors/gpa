@@ -4,11 +4,21 @@ import { GRADE_TIERS, SCALE_DEFINITIONS, getTierForGrade, calculateGpaPoints, ca
 // State Management
 // ============================================================================
 const STORAGE_KEY = 'gpafinder_courses_v1';
+const STORAGE_KEY_SNAPSHOTS = 'gpafinder_snapshots_v1';
 
 let state = {
   courses: [],
   activeFilter: 'all', // 'all' | 'Freshman' | 'Sophomore' | 'Junior' | 'Senior'
 };
+
+let snapshots = [];
+
+// Undo / Redo State
+const MAX_HISTORY = 50;
+let undoStack = [];
+let redoStack = [];
+let isApplyingHistory = false;
+let cellEditingInitialState = null;
 
 // Generate unique ID
 function uid() {
@@ -81,6 +91,306 @@ function createDefaultStarterRows() {
 
 function hasMeaningfulUserData() {
   return state.courses.some(c => (c.name && c.name.trim().length > 0) || (c.grade && String(c.grade).trim().length > 0));
+}
+
+// ============================================================================
+// Undo / Redo History Engine
+// ============================================================================
+function pushHistory(explicitState = null) {
+  if (isApplyingHistory) return;
+  const coursesToRecord = explicitState ? JSON.parse(JSON.stringify(explicitState)) : JSON.parse(JSON.stringify(state.courses));
+
+  if (undoStack.length > 0) {
+    const last = undoStack[undoStack.length - 1];
+    if (JSON.stringify(last) === JSON.stringify(coursesToRecord)) {
+      return;
+    }
+  }
+
+  undoStack.push(coursesToRecord);
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift();
+  }
+  redoStack = [];
+  updateHistoryButtons();
+}
+
+function undo() {
+  if (undoStack.length === 0) return;
+  const previousCourses = undoStack.pop();
+  redoStack.push(JSON.parse(JSON.stringify(state.courses)));
+  if (redoStack.length > MAX_HISTORY) {
+    redoStack.shift();
+  }
+
+  isApplyingHistory = true;
+  state.courses = JSON.parse(JSON.stringify(previousCourses));
+  saveState();
+  renderTable();
+  isApplyingHistory = false;
+  updateHistoryButtons();
+  showToast('Undone');
+}
+
+function redo() {
+  if (redoStack.length === 0) return;
+  const nextCourses = redoStack.pop();
+  undoStack.push(JSON.parse(JSON.stringify(state.courses)));
+  if (undoStack.length > MAX_HISTORY) {
+    undoStack.shift();
+  }
+
+  isApplyingHistory = true;
+  state.courses = JSON.parse(JSON.stringify(nextCourses));
+  saveState();
+  renderTable();
+  isApplyingHistory = false;
+  updateHistoryButtons();
+  showToast('Redone');
+}
+
+function updateHistoryButtons() {
+  const btnUndo = document.getElementById('btn-undo');
+  const btnRedo = document.getElementById('btn-redo');
+  if (btnUndo) btnUndo.disabled = undoStack.length === 0;
+  if (btnRedo) btnRedo.disabled = redoStack.length === 0;
+}
+
+function setupKeyboardShortcuts() {
+  window.addEventListener('keydown', e => {
+    const isModifier = e.ctrlKey || e.metaKey;
+    if (!isModifier) return;
+
+    const key = e.key.toLowerCase();
+
+    // Ctrl+Z or Cmd+Z
+    if (key === 'z') {
+      if (document.activeElement && document.activeElement.id === 'dropdown-snapshot-input') {
+        return;
+      }
+      e.preventDefault();
+      if (e.shiftKey) {
+        redo();
+      } else {
+        undo();
+      }
+      return;
+    }
+
+    // Ctrl+Shift+Z or Ctrl+Y or Cmd+Y
+    if (key === 'y') {
+      if (document.activeElement && document.activeElement.id === 'dropdown-snapshot-input') {
+        return;
+      }
+      e.preventDefault();
+      redo();
+      return;
+    }
+  });
+
+  const btnUndo = document.getElementById('btn-undo');
+  const btnRedo = document.getElementById('btn-redo');
+  if (btnUndo) btnUndo.addEventListener('click', undo);
+  if (btnRedo) btnRedo.addEventListener('click', redo);
+}
+
+// ============================================================================
+// Snapshots Management
+// ============================================================================
+function loadSnapshots() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_SNAPSHOTS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        snapshots = parsed;
+        updateSnapshotBadge();
+        return;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load snapshots', e);
+  }
+  snapshots = [];
+  updateSnapshotBadge();
+}
+
+function saveSnapshots() {
+  try {
+    localStorage.setItem(STORAGE_KEY_SNAPSHOTS, JSON.stringify(snapshots));
+  } catch (e) {
+    console.error('Failed to save snapshots', e);
+  }
+  updateSnapshotBadge();
+}
+
+function updateSnapshotBadge() {
+  const badge = document.getElementById('snapshot-count-badge');
+  if (badge) {
+    badge.textContent = snapshots.length;
+  }
+}
+
+function createSnapshot(customName) {
+  const metrics = calculateMetrics(state.courses);
+  const now = new Date();
+  const dateStr = now.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const defaultName = `Snapshot ${snapshots.length + 1} (${dateStr} ${timeStr})`;
+  const name = (customName && customName.trim().length > 0) ? customName.trim() : defaultName;
+
+  const snapshot = {
+    id: 'snap_' + Math.random().toString(36).substr(2, 9) + Date.now().toString(36),
+    name: name,
+    createdAt: now.toISOString(),
+    courses: JSON.parse(JSON.stringify(state.courses)),
+    metrics: {
+      weightedGpa: metrics.cumulativeWeightedGpa,
+      unweightedGpa: metrics.cumulativeUnweightedGpa,
+      totalCredits: metrics.totalCredits,
+      validCoursesCount: metrics.validCoursesCount,
+      totalCoursesCount: state.courses.length
+    }
+  };
+
+  snapshots.unshift(snapshot);
+  saveSnapshots();
+  renderSnapshotList();
+  showToast(`Saved snapshot "${name}"`);
+  return snapshot;
+}
+
+function restoreSnapshot(snapshotId) {
+  const snapshot = snapshots.find(s => s.id === snapshotId);
+  if (!snapshot) return;
+
+  pushHistory();
+  state.courses = JSON.parse(JSON.stringify(snapshot.courses));
+  saveState();
+  renderTable();
+  showToast(`Restored snapshot "${snapshot.name}"`);
+}
+
+function deleteSnapshot(snapshotId) {
+  const target = snapshots.find(s => s.id === snapshotId);
+  const name = target ? target.name : 'Snapshot';
+  snapshots = snapshots.filter(s => s.id !== snapshotId);
+  saveSnapshots();
+  renderSnapshotList();
+  showToast(`Deleted "${name}"`);
+}
+
+function renderSnapshotList() {
+  const listContainer = document.getElementById('dropdown-snapshots-list');
+  const emptyState = document.getElementById('dropdown-snapshots-empty');
+  if (!listContainer) return;
+
+  listContainer.innerHTML = '';
+  if (snapshots.length === 0) {
+    if (emptyState) emptyState.style.display = 'block';
+    return;
+  }
+  if (emptyState) emptyState.style.display = 'none';
+
+  snapshots.forEach(snapshot => {
+    const item = document.createElement('div');
+    item.className = 'dropdown-snapshot-item';
+    item.dataset.id = snapshot.id;
+    item.title = `Restore "${snapshot.name}"`;
+
+    const formattedDate = formatSnapshotDate(snapshot.createdAt);
+    const weightedGpaStr = snapshot.metrics ? snapshot.metrics.weightedGpa.toFixed(3) : '—';
+    const creditsStr = snapshot.metrics ? snapshot.metrics.totalCredits.toFixed(1) : '0.0';
+
+    item.innerHTML = `
+      <div class="dropdown-snapshot-meta">
+        <span class="dropdown-snapshot-name">${escapeHtml(snapshot.name)}</span>
+        <span class="dropdown-snapshot-details">Weighted: ${weightedGpaStr} • ${creditsStr} cr • ${formattedDate}</span>
+      </div>
+      <div class="dropdown-snapshot-actions">
+        <button class="btn-dropdown-delete" data-id="${snapshot.id}" title="Delete snapshot">✕</button>
+      </div>
+    `;
+
+    listContainer.appendChild(item);
+  });
+}
+
+function formatSnapshotDate(isoString) {
+  if (!isoString) return '';
+  try {
+    const d = new Date(isoString);
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  } catch (e) {
+    return isoString;
+  }
+}
+
+function setupSnapshotHandling() {
+  const saveBtn = document.getElementById('btn-dropdown-save-snapshot');
+  const nameInput = document.getElementById('dropdown-snapshot-input');
+  const listContainer = document.getElementById('dropdown-snapshots-list');
+  const snapshotsMenu = document.getElementById('snapshots-menu');
+  const toggleBtn = document.getElementById('btn-snapshots-toggle');
+
+  if (saveBtn && nameInput) {
+    const handleSave = () => {
+      const name = nameInput.value.trim();
+      createSnapshot(name);
+      nameInput.value = '';
+    };
+
+    saveBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      handleSave();
+    });
+
+    nameInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        e.stopPropagation();
+        handleSave();
+      }
+    });
+  }
+
+  if (listContainer) {
+    listContainer.addEventListener('click', e => {
+      const deleteBtn = e.target.closest('.btn-dropdown-delete');
+      if (deleteBtn) {
+        e.stopPropagation();
+        const id = deleteBtn.dataset.id;
+        deleteSnapshot(id);
+        return;
+      }
+
+      const snapshotItem = e.target.closest('.dropdown-snapshot-item');
+      if (snapshotItem) {
+        const id = snapshotItem.dataset.id;
+        restoreSnapshot(id);
+        if (snapshotsMenu) snapshotsMenu.classList.remove('show');
+        if (toggleBtn) toggleBtn.setAttribute('aria-expanded', 'false');
+        return;
+      }
+    });
+  }
+}
+
+// ============================================================================
+// Toast Notification
+// ============================================================================
+function showToast(message) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => {
+    if (toast.parentNode) {
+      toast.parentNode.removeChild(toast);
+    }
+  }, 3000);
 }
 
 // ============================================================================
@@ -262,6 +572,7 @@ function renderTable() {
   });
 
   updateStatsUI();
+  updateHistoryButtons();
 }
 
 function escapeHtml(str) {
@@ -280,12 +591,23 @@ function escapeHtml(str) {
 function attachTableEvents() {
   const tbody = document.getElementById('spreadsheet-body');
 
+  tbody.addEventListener('focusin', e => {
+    if (e.target.classList.contains('cell-input')) {
+      cellEditingInitialState = JSON.parse(JSON.stringify(state.courses));
+    }
+  });
+
   tbody.addEventListener('input', e => {
     const tr = e.target.closest('tr');
     if (!tr) return;
     const id = tr.dataset.id;
     const course = state.courses.find(c => c.id === id);
     if (!course) return;
+
+    if (cellEditingInitialState) {
+      pushHistory(cellEditingInitialState);
+      cellEditingInitialState = null;
+    }
 
     if (e.target.classList.contains('field-name')) {
       course.name = e.target.value;
@@ -306,16 +628,19 @@ function attachTableEvents() {
     if (!course) return;
 
     if (e.target.classList.contains('field-scale')) {
+      pushHistory();
       course.scale = e.target.value;
       saveState();
       updateRowComputed(tr, course);
       updateStatsUI();
     } else if (e.target.classList.contains('field-credits')) {
+      pushHistory();
       course.credits = parseFloat(e.target.value) || 1.0;
       saveState();
       updateRowComputed(tr, course);
       updateStatsUI();
     } else if (e.target.classList.contains('field-year')) {
+      pushHistory();
       course.year = e.target.value;
       saveState();
       if (state.activeFilter !== 'all' && course.year !== state.activeFilter) {
@@ -331,6 +656,7 @@ function attachTableEvents() {
       const tr = e.target.closest('tr');
       if (!tr) return;
       const id = tr.dataset.id;
+      pushHistory();
       state.courses = state.courses.filter(c => c.id !== id);
       saveState();
       renderTable();
@@ -382,9 +708,10 @@ function updateRowComputed(tr, course) {
 }
 
 // ============================================================================
-// Actions (Add Row, Add 5, Filter, CSV Export/Import, Target Calculator)
+// Actions (Add Row, Add 5, Filter, CSV Export/Import)
 // ============================================================================
 function addNewRow(year = null) {
+  pushHistory();
   const defaultYear = year || (state.activeFilter !== 'all' ? state.activeFilter : 'Freshman');
   const newCourse = {
     id: uid(),
@@ -408,43 +735,21 @@ function addNewRow(year = null) {
   }, 30);
 }
 
-function addFiveRows() {
-  const defaultYear = state.activeFilter !== 'all' ? state.activeFilter : 'Freshman';
-  for (let i = 0; i < 5; i++) {
-    state.courses.push({
-      id: uid(),
-      name: '',
-      scale: 'regular',
-      credits: 1.0,
-      grade: '',
-      year: defaultYear
-    });
-  }
-  saveState();
-  renderTable();
-}
-
 function setupToolbarAndTabs() {
   document.getElementById('btn-add-row').addEventListener('click', () => addNewRow());
-  document.getElementById('btn-add-5-rows').addEventListener('click', addFiveRows);
   document.getElementById('btn-empty-add').addEventListener('click', () => addNewRow());
 
-  document.getElementById('btn-load-sample').addEventListener('click', () => {
-    if (hasMeaningfulUserData() && !confirm('Load sample data? This will replace your current list.')) {
-      return;
-    }
-    state.courses = JSON.parse(JSON.stringify(SAMPLE_COURSES));
-    saveState();
-    renderTable();
-  });
-
-  document.getElementById('btn-clear-all').addEventListener('click', () => {
-    if (!hasMeaningfulUserData() || confirm('Are you sure you want to clear all classes?')) {
-      state.courses = [];
-      saveState();
-      renderTable();
-    }
-  });
+  const clearAllBtn = document.getElementById('btn-clear-all');
+  if (clearAllBtn) {
+    clearAllBtn.addEventListener('click', () => {
+      if (!hasMeaningfulUserData() || confirm('Are you sure you want to clear all classes?')) {
+        pushHistory();
+        state.courses = [];
+        saveState();
+        renderTable();
+      }
+    });
+  }
 
   // Year filter tabs
   const tabButtons = document.querySelectorAll('.tab-btn');
@@ -458,7 +763,73 @@ function setupToolbarAndTabs() {
   });
 }
 
+function setupDropdownHandling() {
+  const dropdowns = [
+    { dropdown: document.getElementById('snapshots-dropdown'), toggle: document.getElementById('btn-snapshots-toggle'), menu: document.getElementById('snapshots-menu') },
+    { dropdown: document.getElementById('actions-dropdown'), toggle: document.getElementById('btn-dropdown-toggle'), menu: document.getElementById('dropdown-menu') }
+  ];
 
+  dropdowns.forEach(({ dropdown, toggle, menu }) => {
+    if (!dropdown || !toggle || !menu) return;
+
+    toggle.addEventListener('click', e => {
+      e.stopPropagation();
+      const isOpen = menu.classList.contains('show');
+
+      // Close all other dropdowns
+      dropdowns.forEach(d => {
+        if (d.menu) {
+          d.menu.classList.remove('show');
+          if (d.toggle) d.toggle.setAttribute('aria-expanded', 'false');
+        }
+      });
+
+      if (!isOpen) {
+        menu.classList.add('show');
+        toggle.setAttribute('aria-expanded', 'true');
+        if (dropdown.id === 'snapshots-dropdown') {
+          renderSnapshotList();
+          const input = document.getElementById('dropdown-snapshot-input');
+          if (input) {
+            setTimeout(() => input.focus(), 50);
+          }
+        }
+      }
+    });
+  });
+
+  // Global click outside to close dropdowns
+  document.addEventListener('click', e => {
+    dropdowns.forEach(({ dropdown, toggle, menu }) => {
+      if (dropdown && menu && !dropdown.contains(e.target)) {
+        menu.classList.remove('show');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+  });
+
+  // Escape key closes dropdowns
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      dropdowns.forEach(({ toggle, menu }) => {
+        if (menu) menu.classList.remove('show');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      });
+    }
+  });
+
+  // Actions menu items click close menu
+  const actionsMenu = document.getElementById('dropdown-menu');
+  if (actionsMenu) {
+    actionsMenu.querySelectorAll('.dropdown-item').forEach(item => {
+      item.addEventListener('click', () => {
+        actionsMenu.classList.remove('show');
+        const toggle = document.getElementById('btn-dropdown-toggle');
+        if (toggle) toggle.setAttribute('aria-expanded', 'false');
+      });
+    });
+  }
+}
 
 // ============================================================================
 // Scale Reference Table Render
@@ -487,104 +858,68 @@ function renderScaleReferenceTable() {
 function setupCsvHandling() {
   const exportBtn = document.getElementById('btn-export-csv');
   const importInput = document.getElementById('csv-file-input');
-  const pasteBtn = document.getElementById('btn-paste-data');
-  const pasteModal = document.getElementById('paste-modal');
-  const closePasteBtn = document.getElementById('btn-close-paste-modal');
-  const cancelPasteBtn = document.getElementById('btn-cancel-paste');
-  const submitPasteBtn = document.getElementById('btn-submit-paste');
-  const pasteTextarea = document.getElementById('paste-textarea');
 
   // Export CSV
-  exportBtn.addEventListener('click', () => {
-    if (state.courses.length === 0) {
-      alert('No courses to export.');
-      return;
-    }
-
-    const headers = ['Class Name', 'Credits', 'Scale', 'Grade', 'Year'];
-    const rows = state.courses.map(c => {
-      const scaleDisplay = c.scale === 'ap_ccp' ? '5.33' : (c.scale === 'honors' ? '4.83' : '4.33');
-      return [
-        `"${(c.name || '').replace(/"/g, '""')}"`,
-        c.credits,
-        scaleDisplay,
-        `"${(c.grade || '').replace(/"/g, '""')}"`,
-        `"${c.year}"`
-      ];
-    });
-
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `GPA_Planner_${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  });
-
-  // Import CSV via file upload
-  importInput.addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = event => {
-      try {
-        const text = event.target.result;
-        const parsedCourses = parseMultiFormatCsv(text);
-
-        if (parsedCourses.length > 0) {
-          state.courses = parsedCourses;
-          saveState();
-          renderTable();
-          alert(`Successfully imported ${parsedCourses.length} classes!`);
-        } else {
-          alert('Could not parse valid course rows from CSV. Please check the file formatting.');
-        }
-      } catch (err) {
-        console.error(err);
-        alert('Error reading CSV file.');
-      }
-      importInput.value = '';
-    };
-    reader.readAsText(file);
-  });
-
-  // Paste Data modal
-  if (pasteBtn && pasteModal) {
-    pasteBtn.addEventListener('click', () => {
-      pasteModal.style.display = 'flex';
-      pasteTextarea.focus();
-    });
-
-    const closeModal = () => {
-      pasteModal.style.display = 'none';
-      pasteTextarea.value = '';
-    };
-
-    closePasteBtn.addEventListener('click', closeModal);
-    cancelPasteBtn.addEventListener('click', closeModal);
-
-    submitPasteBtn.addEventListener('click', () => {
-      const text = pasteTextarea.value.trim();
-      if (!text) {
-        alert('Please paste some CSV or Google Sheets data first.');
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      if (state.courses.length === 0) {
+        alert('No courses to export.');
         return;
       }
 
-      const parsedCourses = parseMultiFormatCsv(text);
-      if (parsedCourses.length > 0) {
-        state.courses = parsedCourses;
-        saveState();
-        renderTable();
-        closeModal();
-        alert(`Successfully imported ${parsedCourses.length} classes!`);
-      } else {
-        alert('Could not parse valid courses from the pasted text.');
-      }
+      const headers = ['Class Name', 'Credits', 'Scale', 'Grade', 'Year'];
+      const rows = state.courses.map(c => {
+        const scaleDisplay = c.scale === 'ap_ccp' ? '5.33' : (c.scale === 'honors' ? '4.83' : '4.33');
+        return [
+          `"${(c.name || '').replace(/"/g, '""')}"`,
+          c.credits,
+          scaleDisplay,
+          `"${(c.grade || '').replace(/"/g, '""')}"`,
+          `"${c.year}"`
+        ];
+      });
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `GPA_Planner_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    });
+  }
+
+  // Import CSV via file upload
+  if (importInput) {
+    importInput.addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = event => {
+        try {
+          const text = event.target.result;
+          const parsedCourses = parseMultiFormatCsv(text);
+
+          if (parsedCourses.length > 0) {
+            pushHistory();
+            state.courses = parsedCourses;
+            saveState();
+            renderTable();
+            showToast(`Imported ${parsedCourses.length} classes`);
+          } else {
+            alert('Could not parse valid course rows from CSV. Please check the file formatting.');
+          }
+        } catch (err) {
+          console.error(err);
+          alert('Error reading CSV file.');
+        }
+        importInput.value = '';
+      };
+      reader.readAsText(file);
     });
   }
 }
@@ -618,7 +953,6 @@ export function parseMultiFormatCsv(csvText) {
   let currentYear = 'Freshman';
 
   // First pass: detect years present in the sheet
-  // If top rows have no year, look ahead to see the first year specified or default to Freshman
   for (let i = startIndex; i < rawRows.length; i++) {
     const cols = rawRows[i];
     if (cols.length >= 4) {
@@ -635,44 +969,38 @@ export function parseMultiFormatCsv(csvText) {
     if (cols.length < 3) continue;
 
     const className = (cols[0] || '').trim();
-    if (!className) continue; // skip blank rows
+    if (!className) continue;
 
     let credits = 1.0;
     let scale = 'regular';
     let grade = '';
     let year = '';
 
-    // Check if column 1 or 2 is credit / scale
     const col1 = (cols[1] || '').trim();
     const col2 = (cols[2] || '').trim();
     const col3 = (cols[3] || '').trim();
     const col4 = (cols[4] || '').trim();
 
-    // Check if col1 looks like credits (e.g. 0.5, 1, 1.0, 2)
     const isCol1NumericCredit = isCreditValue(col1);
     const isCol2NumericCredit = isCreditValue(col2);
 
     if (isCol1NumericCredit && !isCol2NumericCredit) {
-      // Format: Name, Credits, Scale, Grade, Year (Google Sheets format)
       credits = parseFloat(col1) || 1.0;
       scale = normalizeScale(col2);
       grade = col3;
       year = col4;
     } else if (isCol2NumericCredit) {
-      // Format: Name, Scale, Credits, Grade, Year (Standard App format)
       scale = normalizeScale(col1);
       credits = parseFloat(col2) || 1.0;
       grade = col3;
       year = col4;
     } else {
-      // Fallback heuristics
       credits = parseFloat(col1) || parseFloat(col2) || 1.0;
       scale = normalizeScale(col2 || col1);
       grade = col3 || '';
       year = col4 || '';
     }
 
-    // Cascading year support
     if (year && year.trim().length > 0) {
       currentYear = normalizeYear(year);
     }
@@ -729,7 +1057,6 @@ function findYearInRow(cols) {
   return null;
 }
 
-// Simple robust CSV line parser
 function parseCsvLine(text) {
   const isTabDelimited = text.includes('\t') && (!text.includes(',') || text.split('\t').length > text.split(',').length);
   const delimiter = isTabDelimited ? '\t' : ',';
@@ -757,8 +1084,12 @@ function parseCsvLine(text) {
 // ============================================================================
 function init() {
   loadState();
+  loadSnapshots();
   renderScaleReferenceTable();
   setupToolbarAndTabs();
+  setupDropdownHandling();
+  setupKeyboardShortcuts();
+  setupSnapshotHandling();
   attachTableEvents();
   setupCsvHandling();
   renderTable();
