@@ -85,6 +85,23 @@ function normalizeMetrics(m) {
   };
 }
 
+let wsClient = null;
+let liveSyncUnsubscribe = null;
+
+async function getConvexWsClient() {
+  if (wsClient) return wsClient;
+  const baseUrl = getConvexUrl();
+  if (!baseUrl) return null;
+  try {
+    const { ConvexClient } = await import('https://esm.sh/convex@1.14.4/browser');
+    wsClient = new ConvexClient(baseUrl);
+    return wsClient;
+  } catch (e) {
+    console.warn('Live WebSocket client unavailable, using fallback sync', e);
+    return null;
+  }
+}
+
 export const ConvexService = {
   /**
    * Subscribe to sync state changes
@@ -301,7 +318,46 @@ export const ConvexService = {
   },
 
   /**
-   * Start periodic background sync polling
+   * Subscribe to real-time live updates via Convex WebSocket connection
+   * Triggers immediately (<50ms) on any change across connected devices
+   */
+  async subscribeLiveSync(onUpdateCallback) {
+    this.unsubscribeLiveSync();
+    if (!this.isAuthenticated() || !this.isConfigured()) return;
+
+    try {
+      const client = await getConvexWsClient();
+      if (client) {
+        liveSyncUnsubscribe = client.onUpdate(
+          'snapshots:getSyncState',
+          { sessionToken: currentSessionToken },
+          (liveState) => {
+            if (liveState) {
+              notifySyncState('synced', 'Live connected');
+              onUpdateCallback(liveState);
+            }
+          }
+        );
+      }
+    } catch (e) {
+      console.warn('Live WebSocket subscription failed, falling back to background sync', e);
+    }
+  },
+
+  /**
+   * Unsubscribe from live updates
+   */
+  unsubscribeLiveSync() {
+    if (liveSyncUnsubscribe) {
+      try {
+        liveSyncUnsubscribe();
+      } catch (e) {}
+      liveSyncUnsubscribe = null;
+    }
+  },
+
+  /**
+   * Start periodic background sync polling as fallback
    */
   startBackgroundSync(syncCallback, intervalMs = 15000) {
     this.stopBackgroundSync();

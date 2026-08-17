@@ -1462,11 +1462,54 @@ function setupCloudAuthUI() {
       const authMenu = document.getElementById('auth-menu');
       if (authMenu) authMenu.classList.remove('show');
       ConvexService.stopBackgroundSync();
+      ConvexService.unsubscribeLiveSync();
       await ConvexService.logout();
       updateCloudStatusUI('offline', 'Signed out');
       showToast('Signed out. Local data preserved.');
     });
   }
+}
+
+// ============================================================================
+// Real-time Live Cloud Synchronization (WebSocket Subscription)
+// ============================================================================
+function handleLiveCloudUpdate(liveData) {
+  if (!liveData || !Array.isArray(liveData.snapshots)) return;
+
+  const prevSnapshotsJson = JSON.stringify(snapshots);
+  const prevVersionsJson = JSON.stringify(versions);
+  const newSnapshotsJson = JSON.stringify(liveData.snapshots);
+  const newVersionsJson = JSON.stringify(liveData.versions || {});
+
+  if (prevSnapshotsJson === newSnapshotsJson && prevVersionsJson === newVersionsJson) {
+    return; // Data has not changed
+  }
+
+  snapshots = liveData.snapshots;
+  if (liveData.versions) {
+    versions = liveData.versions;
+  }
+
+  const currentLocalActiveId = state.activeSnapshotId;
+  const matchingSnap = snapshots.find(s => s.id === currentLocalActiveId);
+
+  // If user is not dirty or actively editing a table cell, update courses live
+  const activeEl = document.activeElement;
+  const isUserTypingInTable = activeEl && activeEl.closest('#gpa-table');
+
+  if (!state.hasUnsavedChanges && !isUserTypingInTable) {
+    if (matchingSnap) {
+      state.courses = JSON.parse(JSON.stringify(matchingSnap.courses || []));
+      renderTable();
+    } else if (snapshots.length > 0) {
+      state.activeSnapshotId = snapshots[0].id;
+      state.courses = JSON.parse(JSON.stringify(snapshots[0].courses || []));
+      renderTable();
+    }
+  }
+
+  saveLocalData();
+  renderSnapshotList();
 }
 
 // ============================================================================
@@ -1514,6 +1557,9 @@ async function performFullCloudSync() {
       renderTable();
       renderSnapshotList();
     }
+
+    // Connect real-time WebSocket live updates
+    ConvexService.subscribeLiveSync(handleLiveCloudUpdate);
   } catch (err) {
     console.error('Smart sync error', err);
   }
