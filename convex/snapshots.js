@@ -11,15 +11,7 @@ const courseValidator = v.object({
   year: v.string(),
 });
 
-const metricsValidator = v.optional(
-  v.object({
-    weightedGpa: v.number(),
-    unweightedGpa: v.number(),
-    totalCredits: v.number(),
-    validCoursesCount: v.number(),
-    totalCoursesCount: v.optional(v.number()),
-  })
-);
+const metricsValidator = v.optional(v.any());
 
 /**
  * List all snapshot files for the current authenticated user
@@ -255,7 +247,7 @@ export const smartSync = mutation({
 
     const cloudVersions = await ctx.db
       .query("snapshotVersions")
-      .withIndex("by_user_snapshot", q => q.eq("userId", user._id))
+      .withIndex("by_user", q => q.eq("userId", user._id))
       .collect();
 
     const cloudSnapshotsMap = new Map(cloudSnapshots.map(s => [s.clientSnapshotId, s]));
@@ -400,7 +392,7 @@ export const smartSync = mutation({
 
     const finalCloudVersions = await ctx.db
       .query("snapshotVersions")
-      .withIndex("by_user_snapshot", q => q.eq("userId", user._id))
+      .withIndex("by_user", q => q.eq("userId", user._id))
       .collect();
 
     const versionsBySnapshot = {};

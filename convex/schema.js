@@ -31,15 +31,7 @@ export default defineSchema({
         year: v.string(),
       })
     ),
-    metrics: v.optional(
-      v.object({
-        weightedGpa: v.number(),
-        unweightedGpa: v.number(),
-        totalCredits: v.number(),
-        validCoursesCount: v.number(),
-        totalCoursesCount: v.optional(v.number()),
-      })
-    ),
+    metrics: v.optional(v.any()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -62,17 +54,10 @@ export default defineSchema({
         year: v.string(),
       })
     ),
-    metrics: v.optional(
-      v.object({
-        weightedGpa: v.number(),
-        unweightedGpa: v.number(),
-        totalCredits: v.number(),
-        validCoursesCount: v.number(),
-        totalCoursesCount: v.optional(v.number()),
-      })
-    ),
+    metrics: v.optional(v.any()),
     createdAt: v.number(),
   })
+    .index("by_user", ["userId"])
     .index("by_snapshot", ["clientSnapshotId"])
     .index("by_user_snapshot", ["userId", "clientSnapshotId"]),
 

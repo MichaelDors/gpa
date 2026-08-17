@@ -74,6 +74,17 @@ async function callConvex(type, path, args = {}) {
   return result.value;
 }
 
+function normalizeMetrics(m) {
+  if (!m) return null;
+  return {
+    weightedGpa: Number(m.weightedGpa !== undefined ? m.weightedGpa : (m.cumulativeWeightedGpa || 0)),
+    unweightedGpa: Number(m.unweightedGpa !== undefined ? m.unweightedGpa : (m.cumulativeUnweightedGpa || 0)),
+    totalCredits: Number(m.totalCredits || 0),
+    validCoursesCount: Number(m.validCoursesCount || 0),
+    totalCoursesCount: Number(m.totalCoursesCount || 0),
+  };
+}
+
 export const ConvexService = {
   /**
    * Subscribe to sync state changes
@@ -204,7 +215,7 @@ export const ConvexService = {
         clientSnapshotId: id,
         name,
         courses,
-        metrics,
+        metrics: normalizeMetrics(metrics),
         createVersion,
         versionNote,
         updatedAt,
@@ -265,7 +276,7 @@ export const ConvexService = {
           id: s.id,
           name: s.name,
           courses: s.courses || [],
-          metrics: s.metrics || null,
+          metrics: normalizeMetrics(s.metrics),
           createdAt: s.createdAt ? (typeof s.createdAt === 'number' ? s.createdAt : new Date(s.createdAt).getTime()) : Date.now(),
           updatedAt: s.updatedAt ? (typeof s.updatedAt === 'number' ? s.updatedAt : new Date(s.updatedAt).getTime()) : Date.now(),
         })),
@@ -275,7 +286,7 @@ export const ConvexService = {
           name: v.name,
           note: v.note || '',
           courses: v.courses || [],
-          metrics: v.metrics || null,
+          metrics: normalizeMetrics(v.metrics),
           createdAt: v.createdAt ? (typeof v.createdAt === 'number' ? v.createdAt : new Date(v.createdAt).getTime()) : Date.now(),
         })),
         activeSnapshotId: activeSnapshotId || undefined,
