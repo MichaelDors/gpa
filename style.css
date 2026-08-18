@@ -50,6 +50,8 @@
   --modal-overlay-bg: rgba(15, 23, 42, 0.5);
   --toast-bg: #0f172a;
   --toast-text: #ffffff;
+  --floating-pill-bg: rgba(255, 255, 255, 0.92);
+  --floating-pill-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --radius-sm: 2px;
@@ -104,6 +106,8 @@
     --modal-overlay-bg: rgba(0, 0, 0, 0.85);
     --toast-bg: #18181c;
     --toast-text: #f8fafc;
+    --floating-pill-bg: rgba(18, 18, 22, 0.92);
+    --floating-pill-shadow: 0 8px 28px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
   }
 }
 
@@ -272,15 +276,22 @@ main.dashboard-main {
 
 .stats-grid, .stats-ribbon {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-  gap: 8px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 640px) {
+  .stats-grid, .stats-ribbon {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 
 .stat-card {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: 14px 16px;
+  padding: 14px 18px;
   box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
@@ -307,7 +318,7 @@ main.dashboard-main {
 }
 
 .stat-value {
-  font-size: 24px;
+  font-size: 26px;
   font-family: var(--font-sans);
   font-weight: 700;
   color: var(--text-main);
@@ -348,6 +359,13 @@ main.dashboard-main {
   background: var(--border-light);
   padding: 2px;
   border-radius: var(--radius-md);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .tab-btn {
@@ -361,6 +379,7 @@ main.dashboard-main {
   color: var(--text-muted);
   transition: all 0.1s ease;
   box-shadow: none;
+  white-space: nowrap;
 }
 
 .tab-btn:hover {
@@ -376,8 +395,110 @@ main.dashboard-main {
 
 .table-actions {
   display: flex;
-  gap: 6px;
+  gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Contextual Year Metric Pill inside Toolbar */
+.toolbar-stat-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--btn-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+  font-size: 12px;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+  user-select: none;
+  animation: toolbarPillFade 0.15s ease;
+}
+
+@keyframes toolbarPillFade {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes floatingPillSlideUp {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.toolbar-stat-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.toolbar-stat-divider {
+  width: 1px;
+  height: 12px;
+  background: var(--border-color);
+}
+
+.toolbar-stat-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.toolbar-stat-metric-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.toolbar-stat-metric-val {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  color: var(--accent-color);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.2px;
+}
+
+.toolbar-stat-metric-unit {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.toolbar-stat-dot {
+  color: var(--border-hover);
+  font-size: 10px;
+}
+
+/* Mobile Floating Bottom Pill */
+@media (max-width: 768px) {
+  .dashboard-container {
+    padding-bottom: 80px;
+  }
+
+  .toolbar-stat-pill {
+    position: fixed;
+    bottom: max(20px, calc(12px + env(safe-area-inset-bottom)));
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    background: var(--floating-pill-bg);
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    border: 1px solid var(--border-hover);
+    border-radius: 9999px;
+    padding: 7px 18px;
+    box-shadow: var(--floating-pill-shadow);
+    animation: floatingPillSlideUp 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+    gap: 10px;
+  }
 }
 
 /* ==========================================================================

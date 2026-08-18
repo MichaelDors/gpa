@@ -874,40 +874,57 @@ function triggerGpaReaction(currentGpa) {
 function updateStatsUI() {
   const metrics = calculateMetrics();
 
-  document.getElementById('stat-weighted-gpa').textContent =
-    metrics.totalCredits > 0 ? metrics.cumulativeWeightedGpa.toFixed(3) : '0.000';
-  document.getElementById('stat-unweighted-gpa').textContent =
-    metrics.totalCredits > 0 ? metrics.cumulativeUnweightedGpa.toFixed(3) : '0.000';
-  document.getElementById('stat-total-credits').textContent =
-    metrics.totalCredits.toFixed(1);
-  document.getElementById('stat-course-count').textContent =
-    `${metrics.validCoursesCount} graded / ${state.courses.length} total`;
+  const weightedEl = document.getElementById('stat-weighted-gpa');
+  if (weightedEl) {
+    weightedEl.textContent = metrics.totalCredits > 0 ? metrics.cumulativeWeightedGpa.toFixed(3) : '0.000';
+  }
+  const unweightedEl = document.getElementById('stat-unweighted-gpa');
+  if (unweightedEl) {
+    unweightedEl.textContent = metrics.totalCredits > 0 ? metrics.cumulativeUnweightedGpa.toFixed(3) : '0.000';
+  }
+  const totalCreditsEl = document.getElementById('stat-total-credits');
+  if (totalCreditsEl) {
+    totalCreditsEl.textContent = metrics.totalCredits.toFixed(1);
+  }
+  const courseCountEl = document.getElementById('stat-course-count');
+  if (courseCountEl) {
+    courseCountEl.textContent = `${metrics.validCoursesCount} graded / ${state.courses.length} total`;
+  }
 
   // Trigger 2s debounced reaction on GPA change
   const currentWeightedGpa = metrics.totalCredits > 0 ? metrics.cumulativeWeightedGpa : 0;
   triggerGpaReaction(currentWeightedGpa);
 
-  const years = ['freshman', 'sophomore', 'junior', 'senior'];
-  years.forEach(yr => {
-    const capitalized = yr.charAt(0).toUpperCase() + yr.slice(1);
-    const data = metrics.yearResults[capitalized];
-    const gpaEl = document.getElementById(`stat-${yr}-gpa`);
-    const credEl = document.getElementById(`stat-${yr}-credits`);
+  // Update Toolbar Year Metric Pill
+  const toolbarYearStatsEl = document.getElementById('toolbar-year-stats');
+  const toolbarYearLabelEl = document.getElementById('toolbar-stat-label');
+  const toolbarYearGpaEl = document.getElementById('toolbar-stat-gpa');
+  const toolbarYearCreditsEl = document.getElementById('toolbar-stat-credits');
 
-    if (data && data.gpa !== null) {
-      gpaEl.textContent = data.gpa.toFixed(3);
-      credEl.textContent = `${data.credits.toFixed(1)} cr`;
+  if (toolbarYearStatsEl) {
+    if (state.activeFilter === 'all') {
+      toolbarYearStatsEl.style.display = 'none';
     } else {
-      gpaEl.textContent = '—';
-      credEl.textContent = `${data ? data.credits.toFixed(1) : 0} cr`;
+      toolbarYearStatsEl.style.display = 'inline-flex';
+      if (toolbarYearLabelEl) toolbarYearLabelEl.textContent = state.activeFilter;
+      const data = metrics.yearResults[state.activeFilter];
+      if (data && data.gpa !== null) {
+        if (toolbarYearGpaEl) toolbarYearGpaEl.textContent = data.gpa.toFixed(3);
+        if (toolbarYearCreditsEl) toolbarYearCreditsEl.textContent = data.credits.toFixed(1);
+      } else {
+        if (toolbarYearGpaEl) toolbarYearGpaEl.textContent = '—';
+        if (toolbarYearCreditsEl) toolbarYearCreditsEl.textContent = data ? data.credits.toFixed(1) : '0.0';
+      }
     }
-  });
+  }
 
   // Update tab counts
-  document.getElementById('count-all').textContent = state.courses.length;
+  const countAllEl = document.getElementById('count-all');
+  if (countAllEl) countAllEl.textContent = state.courses.length;
   ['Freshman', 'Sophomore', 'Junior', 'Senior'].forEach(yr => {
     const count = state.courses.filter(c => c.year === yr).length;
-    document.getElementById(`count-${yr.toLowerCase()}`).textContent = count;
+    const countEl = document.getElementById(`count-${yr.toLowerCase()}`);
+    if (countEl) countEl.textContent = count;
   });
 }
 
