@@ -162,26 +162,6 @@
           <div class="stat-value" id="stat-total-credits">0.0</div>
           <div class="stat-sub" id="stat-course-count">0 graded</div>
         </div>
-        <div class="stat-card">
-          <div class="stat-label">Freshman</div>
-          <div class="stat-value" id="stat-freshman-gpa">—</div>
-          <div class="stat-sub" id="stat-freshman-credits">0 cr</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Sophomore</div>
-          <div class="stat-value" id="stat-sophomore-gpa">—</div>
-          <div class="stat-sub" id="stat-sophomore-credits">0 cr</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Junior</div>
-          <div class="stat-value" id="stat-junior-gpa">—</div>
-          <div class="stat-sub" id="stat-junior-credits">0 cr</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-label">Senior</div>
-          <div class="stat-value" id="stat-senior-gpa">—</div>
-          <div class="stat-sub" id="stat-senior-credits">0 cr</div>
-        </div>
       </section>
 
       <!-- Spreadsheet Table Card -->
@@ -190,15 +170,26 @@
         <section class="toolbar">
           <div class="tabs" role="tablist">
             <button class="tab-btn active" data-filter="all" id="tab-all">All (<span id="count-all">0</span>)</button>
-            <button class="tab-btn" data-filter="Freshman" id="tab-freshman">Freshman (<span
-                id="count-freshman">0</span>)</button>
-            <button class="tab-btn" data-filter="Sophomore" id="tab-sophomore">Sophomore (<span
-                id="count-sophomore">0</span>)</button>
+            <button class="tab-btn" data-filter="Freshman" id="tab-freshman">Freshman (<span id="count-freshman">0</span>)</button>
+            <button class="tab-btn" data-filter="Sophomore" id="tab-sophomore">Sophomore (<span id="count-sophomore">0</span>)</button>
             <button class="tab-btn" data-filter="Junior" id="tab-junior">Junior (<span id="count-junior">0</span>)</button>
             <button class="tab-btn" data-filter="Senior" id="tab-senior">Senior (<span id="count-senior">0</span>)</button>
           </div>
 
           <div class="table-actions">
+            <div class="toolbar-stat-pill" id="toolbar-year-stats" style="display: none;">
+              <span class="toolbar-stat-label" id="toolbar-stat-label">Freshman</span>
+              <span class="toolbar-stat-divider"></span>
+              <span class="toolbar-stat-item">
+                <span class="toolbar-stat-metric-label">GPA</span>
+                <span class="toolbar-stat-metric-val" id="toolbar-stat-gpa">0.000</span>
+              </span>
+              <span class="toolbar-stat-dot">•</span>
+              <span class="toolbar-stat-item">
+                <span class="toolbar-stat-metric-val" id="toolbar-stat-credits">0.0</span>
+                <span class="toolbar-stat-metric-unit">cr</span>
+              </span>
+            </div>
             <button id="btn-add-row" class="btn-primary">
               <i class="fa-solid fa-plus"></i> Add Row
             </button>
