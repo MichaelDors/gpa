@@ -1,96 +1,109 @@
 /* ==========================================================================
-   GPA Finder & Predictor - Minimal Spreadsheet Stylesheet
-   Utilitarian, clean, zero AI slop, fast and responsive
-   Includes automatic light / dark mode based on media queries
+   GPA Finder & Predictor - Technical Dashboard Stylesheet
+   Sharp, utilitarian, Cloudflare-inspired technical aesthetic
+   Zero AI fluff, dense spreadsheet layout, pitch-black OLED dark mode
    ========================================================================== */
 
 :root {
   color-scheme: light;
-  --bg-color: #f8f9fa;
+  --bg-color: #f4f5f7;
   --panel-bg: #ffffff;
-  --text-main: #1f2328;
-  --text-muted: #59636e;
-  --border-color: #d0d7de;
-  --border-light: #e6ebf1;
-  --header-bg: #f3f4f6;
-  --active-row: #f0f7ff;
-  --focus-ring: #0969da;
+  --card-bg: #ffffff;
+  --card-primary-bg: #ffffff;
+  --header-bg: #ffffff;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-color: #d1d5db;
+  --border-light: #e5e7eb;
+  --border-hover: #9ca3af;
+  --active-row: #f8fafc;
+  --focus-ring: #ff4930;
   --btn-bg: #ffffff;
   --btn-hover: #f3f4f6;
   --btn-active: #e5e7eb;
+  --btn-primary-bg: #ff4930;
+  --btn-primary-hover: #e83a22;
+  --btn-primary-border: #d92e16;
   --btn-primary-text: #ffffff;
-  --tab-active-bg: #1f2328;
-  --tab-active-text: #ffffff;
-  --danger-color: #cf222e;
-  --danger-bg: #ffebe9;
-  --danger-border: rgba(207, 34, 46, 0.3);
-  --accent-color: #0969da;
-  --accent-hover: #0854ad;
-  --accent-light: #f0f7ff;
-  --accent-border: #c8e1ff;
+  --tab-active-bg: #ffffff;
+  --tab-active-text: #0f172a;
+  --danger-color: #dc2626;
+  --danger-bg: #fef2f2;
+  --danger-border: rgba(220, 38, 38, 0.3);
+  --accent-color: #ff4930;
+  --accent-hover: #e83a22;
+  --accent-light: rgba(255, 73, 48, 0.08);
+  --accent-border: rgba(255, 73, 48, 0.3);
   --warning-color: #d97706;
   --warning-bg: #fffbeb;
-  --success-color: #1a7f37;
-  --success-bg: #dafbe1;
-  --card-bg: #fafbfc;
-  --card-primary-bg: #f0f7ff;
-  --row-hover: #fafbfc;
-  --badge-bg: #eef2f6;
-  --badge-text: #1f2328;
-  --computed-bg: #fafafa;
+  --success-color: #16a34a;
+  --success-bg: #f0fdf4;
+  --row-hover: #f8fafc;
+  --badge-bg: #f1f5f9;
+  --badge-text: #1e293b;
+  --computed-bg: #f8fafc;
   --input-bg-focus: #ffffff;
-  --placeholder-color: #adb5bd;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
-  --modal-overlay-bg: rgba(0, 0, 0, 0.4);
-  --toast-bg: #1f2328;
+  --placeholder-color: #94a3b8;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-btn-primary: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 1px 2px rgba(255, 73, 48, 0.25);
+  --modal-overlay-bg: rgba(15, 23, 42, 0.5);
+  --toast-bg: #0f172a;
   --toast-text: #ffffff;
-  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
     color-scheme: dark;
-    --bg-color: #0d1117;
-    --panel-bg: #161b22;
-    --text-main: #f0f6fc;
-    --text-muted: #8b949e;
-    --border-color: #30363d;
-    --border-light: #21262d;
-    --header-bg: #1c2128;
-    --active-row: #1c2d42;
-    --focus-ring: #58a6ff;
-    --btn-bg: #21262d;
-    --btn-hover: #30363d;
-    --btn-active: #282e33;
+    --bg-color: #000000;
+    --panel-bg: #09090b;
+    --card-bg: #09090b;
+    --card-primary-bg: #140908;
+    --header-bg: #000000;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --border-color: #27272a;
+    --border-light: #18181b;
+    --border-hover: #3f3f46;
+    --active-row: #18181b;
+    --focus-ring: #ff4930;
+    --btn-bg: #18181b;
+    --btn-hover: #27272a;
+    --btn-active: #3f3f46;
+    --btn-primary-bg: #ff4930;
+    --btn-primary-hover: #ff634d;
+    --btn-primary-border: #e63d25;
     --btn-primary-text: #ffffff;
-    --tab-active-bg: #f0f6fc;
-    --tab-active-text: #0d1117;
-    --danger-color: #f85149;
-    --danger-bg: rgba(248, 81, 73, 0.15);
-    --danger-border: rgba(248, 81, 73, 0.4);
-    --accent-color: #2f81f7;
-    --accent-hover: #1f6feb;
-    --accent-light: rgba(56, 139, 253, 0.15);
-    --accent-border: rgba(56, 139, 253, 0.35);
-    --warning-color: #f59e0b;
+    --tab-active-bg: #27272a;
+    --tab-active-text: #f8fafc;
+    --danger-color: #f87171;
+    --danger-bg: rgba(239, 68, 68, 0.15);
+    --danger-border: rgba(239, 68, 68, 0.35);
+    --accent-color: #ff4930;
+    --accent-hover: #ff6854;
+    --accent-light: rgba(255, 73, 48, 0.15);
+    --accent-border: rgba(255, 73, 48, 0.35);
+    --warning-color: #fbbf24;
     --warning-bg: rgba(245, 158, 11, 0.15);
-    --success-color: #3fb950;
-    --success-bg: rgba(46, 160, 67, 0.15);
-    --card-bg: #161b22;
-    --card-primary-bg: #0d1d30;
-    --row-hover: #1c2128;
-    --badge-bg: #21262d;
-    --badge-text: #c9d1d9;
-    --computed-bg: #13171e;
-    --input-bg-focus: #0d1117;
-    --placeholder-color: #6e7681;
-    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-    --modal-overlay-bg: rgba(0, 0, 0, 0.7);
-    --toast-bg: #21262d;
-    --toast-text: #f0f6fc;
+    --success-color: #4ade80;
+    --success-bg: rgba(34, 197, 94, 0.15);
+    --row-hover: #121215;
+    --badge-bg: #18181b;
+    --badge-text: #f1f5f9;
+    --computed-bg: #050507;
+    --input-bg-focus: #000000;
+    --placeholder-color: #64748b;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.6);
+    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.9);
+    --shadow-btn-primary: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 1px 2px rgba(0, 0, 0, 0.4);
+    --modal-overlay-bg: rgba(0, 0, 0, 0.85);
+    --toast-bg: #18181c;
+    --toast-text: #f8fafc;
   }
 }
 
@@ -104,24 +117,31 @@ body {
   background-color: var(--bg-color);
   color: var(--text-main);
   font-family: var(--font-sans);
-  font-size: 14px;
+  font-size: 13px;
   line-height: 1.4;
-  padding: 20px;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
 }
 
-.container {
-  max-width: 1240px;
-  margin: 0 auto;
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 4px;
-  box-shadow: var(--shadow-sm);
-}
+/* ==========================================================================
+   Header Navigation
+   ========================================================================== */
 
-/* Header & Meta */
-header {
-  padding: 16px 20px;
+header.app-header {
+  width: 100%;
+  background: var(--header-bg);
   border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(8px);
+}
+
+.header-inner {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 10px 20px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -129,15 +149,21 @@ header {
   gap: 12px;
 }
 
+.header-title {
+  display: flex;
+  align-items: center;
+}
+
 .header-title h1 {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 700;
+  letter-spacing: -0.2px;
   color: var(--text-main);
 }
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   align-items: center;
   flex-wrap: wrap;
 }
@@ -145,7 +171,7 @@ header {
 /* Header Save Button */
 .btn-save {
   font-weight: 600;
-  transition: all 0.2s ease;
+  transition: all 0.15s ease;
   position: relative;
 }
 
@@ -165,8 +191,8 @@ header {
 /* Status Dots */
 .status-dot {
   display: inline-block;
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   margin-right: 4px;
   flex-shrink: 0;
@@ -205,25 +231,63 @@ header {
   font-weight: 600;
 }
 
-/* KPI Stat Cards Ribbon */
-.stats-ribbon {
+/* ==========================================================================
+   Dashboard Main Workspace Layout
+   ========================================================================== */
+
+main.dashboard-main {
+  width: 100%;
+  min-height: calc(100vh - 52px);
+  background: var(--bg-color);
+}
+
+.dashboard-container {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px 20px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Generic Card Module */
+.card {
+  background: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+/* ==========================================================================
+   KPI Metric Cards (Dense, Sharp Technical Grid)
+   ========================================================================== */
+
+.stats-grid, .stats-ribbon {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-  background: var(--card-bg);
-  border-bottom: 1px solid var(--border-color);
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
 }
 
 .stat-card {
-  padding: 12px 16px;
-  border-right: 1px solid var(--border-color);
+  background: var(--card-bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: border-color 0.15s ease;
 }
 
-.stat-card:last-child {
-  border-right: none;
+.stat-card:hover {
+  border-color: var(--border-hover);
 }
 
 .stat-card.primary {
-  background: var(--card-primary-bg);
+  background: var(--card-bg);
+  border-color: var(--accent-border);
 }
 
 .stat-label {
@@ -232,14 +296,17 @@ header {
   text-transform: uppercase;
   color: var(--text-muted);
   letter-spacing: 0.5px;
+  margin-bottom: 6px;
 }
 
 .stat-value {
-  font-size: 20px;
-  font-family: var(--font-mono);
+  font-size: 24px;
+  font-family: var(--font-sans);
   font-weight: 700;
   color: var(--text-main);
-  margin-top: 2px;
+  letter-spacing: -0.5px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
 }
 
 .stat-card.primary .stat-value {
@@ -247,13 +314,18 @@ header {
 }
 
 .stat-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
+  margin-top: 6px;
+  font-weight: 500;
 }
 
-/* Toolbar & Filter Tabs */
+/* ==========================================================================
+   Toolbar & Segmented Filter Tabs
+   ========================================================================== */
+
 .toolbar {
-  padding: 10px 16px;
+  padding: 8px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -264,31 +336,35 @@ header {
 }
 
 .tabs {
-  display: flex;
-  gap: 4px;
-  flex-wrap: wrap;
+  display: inline-flex;
+  gap: 2px;
+  background: var(--border-light);
+  padding: 2px;
+  border-radius: var(--radius-md);
 }
 
 .tab-btn {
   background: transparent;
-  border: 1px solid transparent;
-  padding: 5px 10px;
-  font-size: 13px;
-  font-weight: 500;
+  border: none;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   color: var(--text-muted);
+  transition: all 0.1s ease;
+  box-shadow: none;
 }
 
 .tab-btn:hover {
-  background: var(--header-bg);
   color: var(--text-main);
 }
 
 .tab-btn.active {
-  background: var(--tab-active-bg);
-  color: var(--tab-active-text);
-  font-weight: 600;
+  background: var(--panel-bg);
+  color: var(--text-main);
+  font-weight: 700;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .table-actions {
@@ -297,47 +373,65 @@ header {
   align-items: center;
 }
 
-/* Standard Buttons */
+/* ==========================================================================
+   Buttons (Sharp, Punchy, Technical)
+   ========================================================================== */
+
 button, .file-label-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   font-family: var(--font-sans);
   font-size: 12px;
-  font-weight: 500;
-  padding: 5px 10px;
+  font-weight: 600;
+  padding: 5px 11px;
   border: 1px solid var(--border-color);
   background: var(--btn-bg);
   color: var(--text-main);
-  border-radius: 3px;
+  border-radius: var(--radius-md);
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.12s ease;
   user-select: none;
 }
 
 button:hover, .file-label-btn:hover {
   background: var(--btn-hover);
+  border-color: var(--border-hover);
 }
 
 button:active, .file-label-btn:active {
   background: var(--btn-active);
+  transform: translateY(1px);
 }
 
+/* Primary Action Button */
 button.btn-primary {
-  background: var(--accent-color);
-  border-color: var(--accent-color);
+  background: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-border);
   color: var(--btn-primary-text);
   font-weight: 600;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-btn-primary);
+  letter-spacing: 0.1px;
 }
 
 button.btn-primary:hover {
-  background: var(--accent-hover);
-  border-color: var(--accent-hover);
+  background: var(--btn-primary-hover);
+  border-color: var(--btn-primary-border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 2px 4px rgba(255, 73, 48, 0.3);
+}
+
+button.btn-primary:active {
+  transform: translateY(1px);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
 button.btn-small {
   padding: 3px 8px;
   font-size: 11px;
+  border-radius: var(--radius-sm);
 }
 
 button.btn-block {
@@ -354,6 +448,7 @@ button.btn-link {
   padding: 0;
   font-size: 12px;
   text-decoration: underline;
+  box-shadow: none;
 }
 
 button.btn-danger {
@@ -365,7 +460,15 @@ button.btn-danger:hover {
   border-color: var(--danger-border);
 }
 
-/* Spreadsheet Table Container */
+/* ==========================================================================
+   Spreadsheet Table (Dense, High-Precision Grid)
+   ========================================================================== */
+
+.table-card {
+  display: flex;
+  flex-direction: column;
+}
+
 .spreadsheet-container {
   overflow-x: auto;
   max-height: 580px;
@@ -381,11 +484,13 @@ table.spreadsheet {
 table.spreadsheet th {
   background: var(--header-bg);
   border-bottom: 1px solid var(--border-color);
-  border-right: 1px solid var(--border-color);
+  border-right: 1px solid var(--border-light);
+  box-shadow: inset 0 -1px 0 var(--border-color);
   padding: 8px 10px;
   font-weight: 600;
   font-size: 11px;
   text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--text-muted);
   position: sticky;
   top: 0;
@@ -421,26 +526,45 @@ table.spreadsheet tr:hover td {
   color: var(--text-muted);
   background: var(--card-bg);
   user-select: none;
-  padding: 6px 4px !important;
+  padding: 4px 4px !important;
 }
 
 .col-actions {
-  width: 48px;
+  width: 38px;
+  min-width: 38px;
+  max-width: 38px;
   text-align: center;
-  padding: 0 4px !important;
+  padding: 0 !important;
 }
 
-.col-actions button {
-  padding: 2px 6px;
-  font-size: 11px;
+.col-actions .btn-delete-row {
+  width: 100%;
+  height: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border: none;
+  border-radius: 0;
   background: transparent;
   color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  transition: background-color 0.12s ease, color 0.12s ease;
 }
 
-.col-actions button:hover {
-  color: var(--danger-color);
-  background: var(--danger-bg);
+.col-actions .btn-delete-row:hover {
+  background-color: var(--danger-color);
+  color: #ffffff;
+}
+
+.col-actions .btn-delete-row:active {
+  background-color: #b91c1c;
+  color: #ffffff;
+  transform: none;
 }
 
 .btn-delete-row i {
@@ -451,10 +575,10 @@ table.spreadsheet tr:hover td {
   font-family: var(--font-mono);
   font-weight: 600;
   text-align: right;
-  padding: 6px 12px !important;
+  padding: 4px 12px !important;
   color: var(--text-main);
   background: var(--computed-bg);
-  width: 100px;
+  width: 95px;
 }
 
 .tier-badge {
@@ -463,7 +587,7 @@ table.spreadsheet tr:hover td {
   font-size: 11px;
   font-weight: 600;
   padding: 1px 5px;
-  border-radius: 2px;
+  border-radius: var(--radius-sm);
   background: var(--badge-bg);
   color: var(--badge-text);
   border: 1px solid var(--border-color);
@@ -475,7 +599,7 @@ table.spreadsheet tr:hover td {
   height: 100%;
   border: none;
   background: transparent;
-  padding: 6px 10px;
+  padding: 5px 10px;
   font-family: inherit;
   font-size: 13px;
   color: var(--text-main);
@@ -524,30 +648,42 @@ table.spreadsheet tr:hover td {
 
 .empty-table-state p {
   margin-bottom: 12px;
-}
-
-/* Bottom Section (Scale Viewer) */
-.footer-tools {
-  border-top: 1px solid var(--border-color);
-  background: var(--card-bg);
-  padding: 16px 20px;
-}
-
-.tool-panel {
-  background: var(--panel-bg);
-  border: 1px solid var(--border-color);
-  border-radius: 3px;
-  padding: 14px;
-}
-
-.tool-panel h3 {
   font-size: 13px;
-  font-weight: 700;
+}
+
+/* ==========================================================================
+   Scale Reference Card
+   ========================================================================== */
+
+.tool-panel-card {
+  padding: 14px 16px;
+}
+
+.tool-panel-header {
   margin-bottom: 10px;
-  color: var(--text-main);
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: baseline;
+}
+
+.tool-panel-header h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.tool-panel-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 1px;
+}
+
+.scale-table-wrapper {
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  max-height: 160px;
+  overflow-y: auto;
 }
 
 /* Reference Table for Scales */
@@ -558,8 +694,8 @@ table.spreadsheet tr:hover td {
 }
 
 .scale-table th, .scale-table td {
-  padding: 4px 6px;
-  border: 1px solid var(--border-color);
+  padding: 5px 8px;
+  border: 1px solid var(--border-light);
   text-align: center;
   color: var(--text-main);
 }
@@ -567,6 +703,9 @@ table.spreadsheet tr:hover td {
 .scale-table th {
   background: var(--header-bg);
   font-weight: 600;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
   color: var(--text-muted);
 }
 
@@ -575,7 +714,10 @@ table.spreadsheet tr:hover td {
   background: var(--card-bg);
 }
 
-/* Modals */
+/* ==========================================================================
+   Modals & Dialogs
+   ========================================================================== */
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -587,12 +729,13 @@ table.spreadsheet tr:hover td {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(4px);
 }
 
 .modal-content {
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: var(--radius-lg);
   width: 90%;
   max-width: 580px;
   box-shadow: var(--shadow-md);
@@ -629,10 +772,13 @@ table.spreadsheet tr:hover td {
   cursor: pointer;
   color: var(--text-muted);
   padding: 2px 6px;
+  box-shadow: none;
+  border-radius: var(--radius-sm);
 }
 
 .btn-close:hover {
   color: var(--text-main);
+  background: var(--btn-hover);
 }
 
 .modal-body {
@@ -645,7 +791,7 @@ table.spreadsheet tr:hover td {
   border-top: 1px solid var(--border-color);
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
+  gap: 6px;
   background: var(--card-bg);
 }
 
@@ -658,7 +804,7 @@ table.spreadsheet tr:hover td {
   display: block;
   font-size: 12px;
   font-weight: 600;
-  margin-bottom: 6px;
+  margin-bottom: 5px;
   color: var(--text-main);
 }
 
@@ -670,7 +816,7 @@ table.spreadsheet tr:hover td {
   background: var(--panel-bg);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   outline: none;
 }
 
@@ -693,9 +839,9 @@ table.spreadsheet tr:hover td {
 
 .auth-tabs {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   border-bottom: 1px solid var(--border-color);
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .auth-tab-btn {
@@ -704,10 +850,11 @@ table.spreadsheet tr:hover td {
   border: none;
   border-bottom: 2px solid transparent;
   border-radius: 0;
-  padding: 8px 12px;
+  padding: 7px 10px;
   font-size: 13px;
   font-weight: 600;
   color: var(--text-muted);
+  box-shadow: none;
 }
 
 .auth-tab-btn.active {
@@ -723,7 +870,7 @@ table.spreadsheet tr:hover td {
 
 .auth-alert {
   padding: 8px 12px;
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   font-size: 12px;
   margin-bottom: 14px;
 }
@@ -745,7 +892,7 @@ table.spreadsheet tr:hover td {
   padding: 10px 12px;
   background: var(--card-bg);
   border: 1px solid var(--border-light);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   font-size: 11px;
   line-height: 1.4;
   color: var(--text-muted);
@@ -759,20 +906,20 @@ table.spreadsheet tr:hover td {
 .version-history-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  max-height: 420px;
+  gap: 8px;
+  max-height: 400px;
   overflow-y: auto;
 }
 
 .version-card {
   border: 1px solid var(--border-color);
-  border-radius: 5px;
-  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
   background: var(--panel-bg);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   transition: border-color 0.15s ease;
 }
 
@@ -786,7 +933,7 @@ table.spreadsheet tr:hover td {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
 }
 
 .version-header-line {
@@ -800,8 +947,8 @@ table.spreadsheet tr:hover td {
   font-family: var(--font-mono);
   font-size: 11px;
   font-weight: 700;
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 2px 5px;
+  border-radius: var(--radius-sm);
   background: var(--badge-bg);
   color: var(--badge-text);
   border: 1px solid var(--border-color);
@@ -829,7 +976,7 @@ table.spreadsheet tr:hover td {
 
 .version-stats-row {
   display: flex;
-  gap: 6px;
+  gap: 5px;
   margin-top: 2px;
   flex-wrap: wrap;
 }
@@ -840,8 +987,8 @@ table.spreadsheet tr:hover td {
   color: var(--text-muted);
   background: var(--card-bg);
   border: 1px solid var(--border-light);
-  padding: 1px 6px;
-  border-radius: 2px;
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
 }
 
 .version-chip.highlight {
@@ -889,8 +1036,8 @@ button:disabled {
 /* Toast Notification */
 .toast-container {
   position: fixed;
-  bottom: 24px;
-  right: 24px;
+  bottom: 20px;
+  right: 20px;
   z-index: 2000;
   display: flex;
   flex-direction: column;
@@ -902,9 +1049,9 @@ button:disabled {
   background: var(--toast-bg);
   color: var(--toast-text);
   border: 1px solid var(--border-color);
-  padding: 10px 16px;
-  border-radius: 4px;
-  font-size: 13px;
+  padding: 9px 14px;
+  border-radius: var(--radius-md);
+  font-size: 12px;
   font-weight: 500;
   box-shadow: var(--shadow-md);
   display: flex;
@@ -944,7 +1091,7 @@ button:disabled {
   min-width: 170px;
   background: var(--panel-bg);
   border: 1px solid var(--border-color);
-  border-radius: 4px;
+  border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   z-index: 500;
   padding: 4px 0;
@@ -982,7 +1129,7 @@ button:disabled {
   justify-content: flex-start;
   gap: 8px;
   width: 100%;
-  padding: 7px 12px;
+  padding: 6px 12px;
   margin: 0;
   font-family: var(--font-sans);
   font-size: 12px;
@@ -995,6 +1142,7 @@ button:disabled {
   text-align: left;
   cursor: pointer;
   box-sizing: border-box;
+  box-shadow: none;
 }
 
 .dropdown-item i {
@@ -1058,7 +1206,7 @@ button:disabled {
   background: var(--panel-bg);
   color: var(--text-main);
   border: 1px solid var(--border-color);
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
   outline: none;
 }
 
@@ -1074,10 +1222,10 @@ button:disabled {
 }
 
 .dropdown-section-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.6px;
   color: var(--text-muted);
   padding: 6px 12px;
 }
@@ -1093,7 +1241,7 @@ button:disabled {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  padding: 7px 10px;
   border-bottom: 1px solid var(--border-light);
   gap: 8px;
   cursor: pointer;
@@ -1118,7 +1266,7 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  flex: 1;
+  flex-1;
   min-width: 0;
 }
 
@@ -1157,7 +1305,8 @@ button:disabled {
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  border-radius: 3px;
+  border-radius: var(--radius-sm);
+  box-shadow: none;
 }
 
 .dropdown-snapshot-actions button:hover {

@@ -10,9 +10,9 @@
 </head>
 
 <body>
-  <div class="container">
-    <!-- Header -->
-    <header>
+  <!-- Cloudflare-style Top Navigation Header -->
+  <header class="app-header">
+    <div class="header-inner">
       <div class="header-title">
         <h1>GPA.dors.fyi</h1>
       </div>
@@ -126,96 +126,108 @@
           </div>
         </div>
       </div>
-    </header>
+    </div>
+  </header>
 
-    <!-- Stats Ribbon -->
-    <section class="stats-ribbon" aria-label="GPA Summary">
-      <div class="stat-card primary">
-        <div class="stat-label">Weighted GPA</div>
-        <div class="stat-value" id="stat-weighted-gpa">0.000</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Unweighted GPA</div>
-        <div class="stat-value" id="stat-unweighted-gpa">0.000</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Total Credits</div>
-        <div class="stat-value" id="stat-total-credits">0.0</div>
-        <div class="stat-sub" id="stat-course-count">0 graded</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Freshman</div>
-        <div class="stat-value" id="stat-freshman-gpa">—</div>
-        <div class="stat-sub" id="stat-freshman-credits">0 cr</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Sophomore</div>
-        <div class="stat-value" id="stat-sophomore-gpa">—</div>
-        <div class="stat-sub" id="stat-sophomore-credits">0 cr</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Junior</div>
-        <div class="stat-value" id="stat-junior-gpa">—</div>
-        <div class="stat-sub" id="stat-junior-credits">0 cr</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-label">Senior</div>
-        <div class="stat-value" id="stat-senior-gpa">—</div>
-        <div class="stat-sub" id="stat-senior-credits">0 cr</div>
-      </div>
-    </section>
+  <!-- Dashboard Main Content -->
+  <main class="dashboard-main">
+    <div class="dashboard-container">
 
-    <!-- Toolbar & Filter Tabs -->
-    <section class="toolbar">
-      <div class="tabs" role="tablist">
-        <button class="tab-btn active" data-filter="all" id="tab-all">All (<span id="count-all">0</span>)</button>
-        <button class="tab-btn" data-filter="Freshman" id="tab-freshman">Freshman (<span
-            id="count-freshman">0</span>)</button>
-        <button class="tab-btn" data-filter="Sophomore" id="tab-sophomore">Sophomore (<span
-            id="count-sophomore">0</span>)</button>
-        <button class="tab-btn" data-filter="Junior" id="tab-junior">Junior (<span id="count-junior">0</span>)</button>
-        <button class="tab-btn" data-filter="Senior" id="tab-senior">Senior (<span id="count-senior">0</span>)</button>
+      <!-- Stats Grid (Modular metric cards) -->
+      <section class="stats-grid" aria-label="GPA Summary">
+        <div class="stat-card primary">
+          <div class="stat-label">Weighted GPA</div>
+          <div class="stat-value" id="stat-weighted-gpa">0.000</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Unweighted GPA</div>
+          <div class="stat-value" id="stat-unweighted-gpa">0.000</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Total Credits</div>
+          <div class="stat-value" id="stat-total-credits">0.0</div>
+          <div class="stat-sub" id="stat-course-count">0 graded</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Freshman</div>
+          <div class="stat-value" id="stat-freshman-gpa">—</div>
+          <div class="stat-sub" id="stat-freshman-credits">0 cr</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Sophomore</div>
+          <div class="stat-value" id="stat-sophomore-gpa">—</div>
+          <div class="stat-sub" id="stat-sophomore-credits">0 cr</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Junior</div>
+          <div class="stat-value" id="stat-junior-gpa">—</div>
+          <div class="stat-sub" id="stat-junior-credits">0 cr</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Senior</div>
+          <div class="stat-value" id="stat-senior-gpa">—</div>
+          <div class="stat-sub" id="stat-senior-credits">0 cr</div>
+        </div>
+      </section>
+
+      <!-- Spreadsheet Table Card -->
+      <div class="card table-card">
+        <!-- Toolbar & Filter Tabs -->
+        <section class="toolbar">
+          <div class="tabs" role="tablist">
+            <button class="tab-btn active" data-filter="all" id="tab-all">All (<span id="count-all">0</span>)</button>
+            <button class="tab-btn" data-filter="Freshman" id="tab-freshman">Freshman (<span
+                id="count-freshman">0</span>)</button>
+            <button class="tab-btn" data-filter="Sophomore" id="tab-sophomore">Sophomore (<span
+                id="count-sophomore">0</span>)</button>
+            <button class="tab-btn" data-filter="Junior" id="tab-junior">Junior (<span id="count-junior">0</span>)</button>
+            <button class="tab-btn" data-filter="Senior" id="tab-senior">Senior (<span id="count-senior">0</span>)</button>
+          </div>
+
+          <div class="table-actions">
+            <button id="btn-add-row" class="btn-primary">
+              <i class="fa-solid fa-plus"></i> Add Row
+            </button>
+          </div>
+        </section>
+
+        <!-- Spreadsheet Table -->
+        <div class="spreadsheet-container">
+          <table class="spreadsheet" id="gpa-table">
+            <thead>
+              <tr>
+                <th class="col-num">#</th>
+                <th style="width: 34%;">Class</th>
+                <th style="width: 20%;">Scale</th>
+                <th style="width: 12%;">Credits</th>
+                <th style="width: 14%;">Grade</th>
+                <th style="width: 12%;">Year</th>
+                <th class="col-computed">Points</th>
+                <th class="col-actions"></th>
+              </tr>
+            </thead>
+            <tbody id="spreadsheet-body">
+              <!-- Populated by JavaScript -->
+            </tbody>
+          </table>
+          <div id="empty-state" class="empty-table-state" style="display: none;">
+            <p>No classes in this snapshot.</p>
+            <button id="btn-empty-add" class="btn-primary">
+              <i class="fa-solid fa-plus"></i> Add Row
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div class="table-actions">
-        <button id="btn-add-row" class="btn-primary">
-          <i class="fa-solid fa-plus"></i> Add Row
-        </button>
-      </div>
-    </section>
-
-    <!-- Spreadsheet Table -->
-    <main class="spreadsheet-container">
-      <table class="spreadsheet" id="gpa-table">
-        <thead>
-          <tr>
-            <th class="col-num">#</th>
-            <th style="width: 34%;">Class</th>
-            <th style="width: 20%;">Scale</th>
-            <th style="width: 12%;">Credits</th>
-            <th style="width: 14%;">Grade</th>
-            <th style="width: 12%;">Year</th>
-            <th class="col-computed">Points</th>
-            <th class="col-actions"></th>
-          </tr>
-        </thead>
-        <tbody id="spreadsheet-body">
-          <!-- Populated by JavaScript -->
-        </tbody>
-      </table>
-      <div id="empty-state" class="empty-table-state" style="display: none;">
-        <p>No classes in this snapshot.</p>
-        <button id="btn-empty-add" class="btn-primary">
-          <i class="fa-solid fa-plus"></i> Add Row
-        </button>
-      </div>
-    </main>
-
-    <!-- Scale Reference Table -->
-    <footer class="footer-tools">
-      <section class="tool-panel">
-        <h3>Scale Reference</h3>
-        <div style="max-height: 160px; overflow-y: auto; border: 1px solid var(--border-color);">
+      <!-- Scale Reference Card -->
+      <div class="card tool-panel-card">
+        <div class="tool-panel-header">
+          <div>
+            <h3>Scale Reference</h3>
+            <p class="tool-panel-desc">Standard grading tier grade point conversions</p>
+          </div>
+        </div>
+        <div class="scale-table-wrapper">
           <table class="scale-table">
             <thead>
               <tr>
@@ -231,9 +243,10 @@
             </tbody>
           </table>
         </div>
-      </section>
-    </footer>
-  </div>
+      </div>
+
+    </div>
+  </main>
 
   <!-- ======================================================================= -->
   <!-- MODALS -->

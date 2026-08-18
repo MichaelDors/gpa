@@ -8,6 +8,7 @@ const STORAGE_KEY_COURSES = 'gpafinder_courses_v1';
 const STORAGE_KEY_SNAPSHOTS = 'gpafinder_snapshots_v2';
 const STORAGE_KEY_VERSIONS = 'gpafinder_versions_v2';
 const STORAGE_KEY_ACTIVE_SNAP = 'gpafinder_active_snapshot_id_v2';
+const STORAGE_KEY_DIRTY = 'gpafinder_unsaved_dirty_v2';
 
 let state = {
   activeSnapshotId: null,
@@ -111,7 +112,7 @@ function loadLocalData() {
             if (Array.isArray(parsed) && parsed.length > 0) {
               initialCourses = parsed;
             }
-          } catch (_) {}
+          } catch (_) { }
         }
 
         const initialSnapId = uid('snap_');
@@ -162,8 +163,25 @@ function loadLocalData() {
     const savedActiveId = localStorage.getItem(STORAGE_KEY_ACTIVE_SNAP);
     const activeSnap = snapshots.find(s => s.id === savedActiveId) || snapshots[0];
     state.activeSnapshotId = activeSnap.id;
-    state.courses = JSON.parse(JSON.stringify(activeSnap.courses || []));
-    state.hasUnsavedChanges = false;
+
+    // Load working courses and dirty state for local persistence
+    const savedCoursesRaw = localStorage.getItem(STORAGE_KEY_COURSES);
+    const savedDirtyRaw = localStorage.getItem(STORAGE_KEY_DIRTY);
+    if (savedCoursesRaw) {
+      try {
+        const parsed = JSON.parse(savedCoursesRaw);
+        if (Array.isArray(parsed)) {
+          state.courses = parsed;
+        } else {
+          state.courses = JSON.parse(JSON.stringify(activeSnap.courses || []));
+        }
+      } catch (_) {
+        state.courses = JSON.parse(JSON.stringify(activeSnap.courses || []));
+      }
+    } else {
+      state.courses = JSON.parse(JSON.stringify(activeSnap.courses || []));
+    }
+    state.hasUnsavedChanges = savedDirtyRaw === 'true';
 
     saveLocalData();
   } catch (e) {
@@ -212,18 +230,20 @@ function saveLocalData() {
     if (state.activeSnapshotId) {
       localStorage.setItem(STORAGE_KEY_ACTIVE_SNAP, state.activeSnapshotId);
     }
-    // Update active snapshot courses in snapshots array
+    // Update active snapshot courses in snapshots array for local persistence
     const activeSnap = snapshots.find(s => s.id === state.activeSnapshotId);
     if (activeSnap) {
       activeSnap.courses = JSON.parse(JSON.stringify(state.courses));
       activeSnap.metrics = calculateMetrics(state.courses);
     }
     localStorage.setItem(STORAGE_KEY_COURSES, JSON.stringify(state.courses));
+    localStorage.setItem(STORAGE_KEY_DIRTY, state.hasUnsavedChanges ? 'true' : 'false');
   } catch (e) {
     console.error('Failed to save to localStorage', e);
   }
   updateSnapshotBadge();
   updateActiveSnapshotHeaderUI();
+  updateSaveButtonUI();
 }
 
 // ============================================================================
@@ -780,13 +800,13 @@ function calculateMetrics(coursesList = state.courses) {
 function updateStatsUI() {
   const metrics = calculateMetrics();
 
-  document.getElementById('stat-weighted-gpa').textContent = 
+  document.getElementById('stat-weighted-gpa').textContent =
     metrics.totalCredits > 0 ? metrics.cumulativeWeightedGpa.toFixed(3) : '0.000';
-  document.getElementById('stat-unweighted-gpa').textContent = 
+  document.getElementById('stat-unweighted-gpa').textContent =
     metrics.totalCredits > 0 ? metrics.cumulativeUnweightedGpa.toFixed(3) : '0.000';
-  document.getElementById('stat-total-credits').textContent = 
+  document.getElementById('stat-total-credits').textContent =
     metrics.totalCredits.toFixed(1);
-  document.getElementById('stat-course-count').textContent = 
+  document.getElementById('stat-course-count').textContent =
     `${metrics.validCoursesCount} graded / ${state.courses.length} total`;
 
   const years = ['freshman', 'sophomore', 'junior', 'senior'];
@@ -1000,7 +1020,7 @@ function attachTableEvents() {
   });
 
   tbody.addEventListener('click', e => {
-    const deleteBtn = e.target.closest('.btn-delete-row');
+    const deleteBtn = e.target.closest('.btn-delete-row, .col-actions');
     if (deleteBtn) {
       const tr = deleteBtn.closest('tr');
       if (!tr) return;
@@ -1495,7 +1515,25 @@ async function performFullCloudSync(isManualSync = false) {
       }
     }
 
-    const syncResult = await ConvexService.smartSync(snapshots, allLocalVersions, state.activeSnapshotId);
+    // Prepare snapshots payload for cloud sync:
+    // If the active snapshot has unsaved local changes, send its last saved revision from versions
+    // so unsaved local keystrokes/drafts stay on localhost only until explicitly saved.
+    const snapshotsToSend = snapshots.map(s => {
+      if (s.id === state.activeSnapshotId && state.hasUnsavedChanges && versions[s.id] && versions[s.id].length > 0) {
+        const lastSavedVer = versions[s.id][0];
+        return {
+          id: s.id,
+          name: s.name,
+          courses: lastSavedVer.courses || [],
+          metrics: lastSavedVer.metrics || null,
+          createdAt: s.createdAt,
+          updatedAt: lastSavedVer.createdAt || s.updatedAt,
+        };
+      }
+      return s;
+    });
+
+    const syncResult = await ConvexService.smartSync(snapshotsToSend, allLocalVersions, state.activeSnapshotId);
 
     if (syncResult && Array.isArray(syncResult.snapshots) && syncResult.snapshots.length > 0) {
       snapshots = syncResult.snapshots;
@@ -1735,11 +1773,11 @@ export function parseMultiFormatCsv(csvText) {
 
   let startIndex = 0;
   const firstRowStr = rawRows[0].join(' ').toLowerCase();
-  const isHeader = firstRowStr.includes('class') || 
-                   firstRowStr.includes('course') || 
-                   firstRowStr.includes('credit') || 
-                   firstRowStr.includes('scale') || 
-                   firstRowStr.includes('grade');
+  const isHeader = firstRowStr.includes('class') ||
+    firstRowStr.includes('course') ||
+    firstRowStr.includes('credit') ||
+    firstRowStr.includes('scale') ||
+    firstRowStr.includes('grade');
 
   if (isHeader) startIndex = 1;
 
