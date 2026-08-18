@@ -1472,15 +1472,23 @@ function setupCloudAuthUI() {
         tabLogin.classList.add('active');
         tabRegister.classList.remove('active');
         if (submitBtn) submitBtn.textContent = 'Sign In';
+        if (previewAvatar) previewAvatar.style.display = 'none';
       } else {
         tabRegister.classList.add('active');
         tabLogin.classList.remove('active');
         if (submitBtn) submitBtn.textContent = 'Create Account';
+        if (previewAvatar) {
+          previewAvatar.style.display = 'flex';
+          const initialSeed = (usernameInput && usernameInput.value.trim()) ? usernameInput.value.trim() : 'new user';
+          renderBlobatar(initialSeed, previewAvatar);
+        }
       }
-    }
-    if (previewAvatar) {
-      const initialSeed = (usernameInput && usernameInput.value.trim()) ? usernameInput.value.trim() : (mode === 'register' ? 'new user' : 'alex');
-      renderBlobatar(initialSeed, previewAvatar);
+    } else if (previewAvatar) {
+      previewAvatar.style.display = mode === 'register' ? 'flex' : 'none';
+      if (mode === 'register') {
+        const initialSeed = (usernameInput && usernameInput.value.trim()) ? usernameInput.value.trim() : 'new user';
+        renderBlobatar(initialSeed, previewAvatar);
+      }
     }
     if (errorMsg) errorMsg.style.display = 'none';
     if (successMsg) successMsg.style.display = 'none';
@@ -1507,8 +1515,10 @@ function setupCloudAuthUI() {
 
   if (authUsernameInput && authModalAvatarPreview) {
     authUsernameInput.addEventListener('input', () => {
-      const val = authUsernameInput.value.trim();
-      renderBlobatar(val || (authMode === 'register' ? 'new user' : 'alex'), authModalAvatarPreview);
+      if (authMode === 'register') {
+        const val = authUsernameInput.value.trim();
+        renderBlobatar(val || 'new user', authModalAvatarPreview);
+      }
     });
   }
 
@@ -1520,8 +1530,7 @@ function setupCloudAuthUI() {
       if (submitBtn) submitBtn.textContent = 'Sign In';
       if (errorMsg) errorMsg.style.display = 'none';
       if (authModalAvatarPreview) {
-        const val = authUsernameInput ? authUsernameInput.value.trim() : '';
-        renderBlobatar(val || 'alex', authModalAvatarPreview);
+        authModalAvatarPreview.style.display = 'none';
       }
     });
   }
@@ -1534,6 +1543,7 @@ function setupCloudAuthUI() {
       if (submitBtn) submitBtn.textContent = 'Create Account';
       if (errorMsg) errorMsg.style.display = 'none';
       if (authModalAvatarPreview) {
+        authModalAvatarPreview.style.display = 'flex';
         const val = authUsernameInput ? authUsernameInput.value.trim() : '';
         renderBlobatar(val || 'new user', authModalAvatarPreview);
       }

@@ -307,16 +307,15 @@
           <button id="tab-auth-register" class="auth-tab-btn">Create Account</button>
         </div>
 
-        <div class="auth-avatar-preview-box">
-          <div id="auth-modal-avatar-preview" class="auth-modal-avatar"></div>
-          <div class="auth-avatar-preview-hint">Avatar Preview</div>
-        </div>
-
         <form id="auth-form" class="auth-form">
           <div class="form-group">
             <label for="auth-username-input">Username</label>
-            <input type="text" id="auth-username-input" class="form-input" placeholder="e.g. alex" required
-              autocomplete="username">
+            <div class="auth-input-with-avatar">
+              <div id="auth-modal-avatar-preview" class="auth-modal-avatar" style="display: none;" aria-hidden="true">
+              </div>
+              <input type="text" id="auth-username-input" class="form-input" placeholder="e.g. michael" required
+                autocomplete="username">
+            </div>
           </div>
 
           <div class="form-group">
