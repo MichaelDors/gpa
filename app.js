@@ -1,5 +1,6 @@
 import { GRADE_TIERS, SCALE_DEFINITIONS, getTierForGrade, calculateGpaPoints, calculateUnweightedPoints, getConvexUrl } from './config.js';
 import { ConvexService } from './convex-client.js';
+import { renderBlobatar, registerAvatar, setAvatarMood, refreshAllAvatars } from './avatar.js';
 
 // ============================================================================
 // State Management & Storage Keys
@@ -370,6 +371,7 @@ export function switchSnapshot(targetSnapshotId) {
   saveLocalData();
   renderTable();
   renderSnapshotList();
+  resetGpaReactionBaseline();
   showToast(`Switched to "${target.name}"`);
 }
 
@@ -597,6 +599,7 @@ export function restoreVersion(snapshotId, versionId) {
         snap.updatedAt = Date.now();
       }
       renderTable();
+      resetGpaReactionBaseline();
     } else {
       if (snap) {
         snap.courses = JSON.parse(JSON.stringify(targetVer.courses || []));
@@ -795,6 +798,77 @@ function calculateMetrics(coursesList = state.courses) {
 }
 
 // ============================================================================
+// Blobatar GPA Reaction Controller (1-second debounce, 3-second auto-return)
+// ============================================================================
+let lastSettledGpa = null;
+let gpaReactionTimer = null;
+let moodResetTimer = null;
+
+function getCurrentUserName() {
+  if (ConvexService && ConvexService.isAuthenticated()) {
+    const user = ConvexService.getUser();
+    if (user && user.username) return user.username;
+  }
+  return 'blobatar';
+}
+
+function resetGpaReactionBaseline(gpa = null) {
+  if (gpaReactionTimer) {
+    clearTimeout(gpaReactionTimer);
+    gpaReactionTimer = null;
+  }
+  if (moodResetTimer) {
+    clearTimeout(moodResetTimer);
+    moodResetTimer = null;
+  }
+  const metrics = calculateMetrics();
+  lastSettledGpa = gpa !== null ? gpa : (metrics.totalCredits > 0 ? metrics.cumulativeWeightedGpa : 0);
+  setAvatarMood('idle');
+}
+
+function triggerGpaReaction(currentGpa) {
+  if (lastSettledGpa === null) {
+    lastSettledGpa = currentGpa;
+    return;
+  }
+
+  // Clear pending evaluation timer while user is actively making changes
+  if (gpaReactionTimer) {
+    clearTimeout(gpaReactionTimer);
+  }
+
+  // 1-second debounce: evaluate only when user hasn't made changes for 1s
+  gpaReactionTimer = setTimeout(() => {
+    const diff = currentGpa - lastSettledGpa;
+    const EPSILON = 0.0005;
+
+    // Clear any previous auto-reset timer
+    if (moodResetTimer) {
+      clearTimeout(moodResetTimer);
+      moodResetTimer = null;
+    }
+
+    if (diff > EPSILON) {
+      setAvatarMood('happy');
+      // Return to normal (idle) after 3s
+      moodResetTimer = setTimeout(() => {
+        setAvatarMood('idle');
+      }, 3000);
+    } else if (diff < -EPSILON) {
+      setAvatarMood('sad');
+      // Return to normal (idle) after 3s
+      moodResetTimer = setTimeout(() => {
+        setAvatarMood('idle');
+      }, 3000);
+    } else {
+      setAvatarMood('idle');
+    }
+
+    lastSettledGpa = currentGpa;
+  }, 1000);
+}
+
+// ============================================================================
 // DOM Rendering & Table Updates
 // ============================================================================
 function updateStatsUI() {
@@ -808,6 +882,10 @@ function updateStatsUI() {
     metrics.totalCredits.toFixed(1);
   document.getElementById('stat-course-count').textContent =
     `${metrics.validCoursesCount} graded / ${state.courses.length} total`;
+
+  // Trigger 2s debounced reaction on GPA change
+  const currentWeightedGpa = metrics.totalCredits > 0 ? metrics.cumulativeWeightedGpa : 0;
+  triggerGpaReaction(currentWeightedGpa);
 
   const years = ['freshman', 'sophomore', 'junior', 'senior'];
   years.forEach(yr => {
@@ -1332,37 +1410,46 @@ function setupCloudAuthUI() {
   const updateCloudStatusUI = (status, message = '') => {
     const dot = document.getElementById('auth-status-dot');
     const label = document.getElementById('auth-btn-label');
+    const headerAvatar = document.getElementById('auth-header-avatar');
+    const menuAvatar = document.getElementById('auth-menu-avatar');
     const guestSection = document.getElementById('auth-menu-guest');
     const userSection = document.getElementById('auth-menu-user');
     const usernameDisplay = document.getElementById('auth-menu-username');
     const syncDesc = document.getElementById('auth-sync-status-desc');
 
-    if (!dot || !label) return;
+    if (!label) return;
 
-    dot.className = `status-dot ${status}`;
+    if (dot) {
+      dot.className = `status-dot ${status}`;
+    }
 
     if (ConvexService.isAuthenticated()) {
       const user = ConvexService.getUser();
       const name = user ? user.username : 'User';
-      label.innerHTML = `<i class="fa-solid fa-cloud"></i> ${escapeHtml(name)}`;
+      label.innerHTML = `<span class="auth-username-label">${escapeHtml(name)}</span>`;
+      
       if (guestSection) guestSection.style.display = 'none';
       if (userSection) userSection.style.display = 'block';
-      if (usernameDisplay) usernameDisplay.innerHTML = `<i class="fa-solid fa-user"></i> ${escapeHtml(name)}`;
+      if (usernameDisplay) usernameDisplay.textContent = name;
       if (syncDesc) {
         if (status === 'syncing') syncDesc.textContent = 'Syncing changes...';
         else if (status === 'error') syncDesc.textContent = message || 'Sync error';
         else syncDesc.textContent = message || 'Synced with cloud';
       }
     } else {
-      label.innerHTML = `<i class="fa-solid fa-cloud"></i> Sign In / Sync`;
+      label.innerHTML = `Sign In / Sync`;
       if (guestSection) guestSection.style.display = 'block';
       if (userSection) userSection.style.display = 'none';
     }
+    refreshAllAvatars();
   };
 
   // Open Auth modal
   const openAuthModal = (mode = 'login') => {
     authMode = mode;
+    const usernameInput = document.getElementById('auth-username-input');
+    const previewAvatar = document.getElementById('auth-modal-avatar-preview');
+
     if (tabLogin && tabRegister) {
       if (mode === 'login') {
         tabLogin.classList.add('active');
@@ -1373,6 +1460,10 @@ function setupCloudAuthUI() {
         tabLogin.classList.remove('active');
         if (submitBtn) submitBtn.textContent = 'Create Account';
       }
+    }
+    if (previewAvatar) {
+      const initialSeed = (usernameInput && usernameInput.value.trim()) ? usernameInput.value.trim() : (mode === 'register' ? 'new user' : 'alex');
+      renderBlobatar(initialSeed, previewAvatar);
     }
     if (errorMsg) errorMsg.style.display = 'none';
     if (successMsg) successMsg.style.display = 'none';
@@ -1394,6 +1485,16 @@ function setupCloudAuthUI() {
 
   if (closeAuthBtn) closeAuthBtn.addEventListener('click', closeAuthModal);
 
+  const authUsernameInput = document.getElementById('auth-username-input');
+  const authModalAvatarPreview = document.getElementById('auth-modal-avatar-preview');
+
+  if (authUsernameInput && authModalAvatarPreview) {
+    authUsernameInput.addEventListener('input', () => {
+      const val = authUsernameInput.value.trim();
+      renderBlobatar(val || (authMode === 'register' ? 'new user' : 'alex'), authModalAvatarPreview);
+    });
+  }
+
   if (tabLogin) {
     tabLogin.addEventListener('click', () => {
       authMode = 'login';
@@ -1401,6 +1502,10 @@ function setupCloudAuthUI() {
       tabRegister.classList.remove('active');
       if (submitBtn) submitBtn.textContent = 'Sign In';
       if (errorMsg) errorMsg.style.display = 'none';
+      if (authModalAvatarPreview) {
+        const val = authUsernameInput ? authUsernameInput.value.trim() : '';
+        renderBlobatar(val || 'alex', authModalAvatarPreview);
+      }
     });
   }
 
@@ -1411,6 +1516,10 @@ function setupCloudAuthUI() {
       tabLogin.classList.remove('active');
       if (submitBtn) submitBtn.textContent = 'Create Account';
       if (errorMsg) errorMsg.style.display = 'none';
+      if (authModalAvatarPreview) {
+        const val = authUsernameInput ? authUsernameInput.value.trim() : '';
+        renderBlobatar(val || 'new user', authModalAvatarPreview);
+      }
     });
   }
 
@@ -1963,6 +2072,28 @@ async function init() {
   attachTableEvents();
   setupCsvHandling();
   renderTable();
+
+  // Initialize baseline GPA and register main Blobatar PFP
+  const initialMetrics = calculateMetrics();
+  lastSettledGpa = initialMetrics.totalCredits > 0 ? initialMetrics.cumulativeWeightedGpa : 0;
+
+  registerAvatar('auth-header-avatar', getCurrentUserName, {
+    traits: { shape: 0.43 },
+    background: 'circle',
+    animate: 'hover',
+  });
+
+  registerAvatar('auth-menu-avatar', getCurrentUserName, {
+    traits: { shape: 0.43 },
+    background: 'circle',
+    animate: 'hover',
+  });
+
+  registerAvatar('auth-menu-guest-avatar', getCurrentUserName, {
+    traits: { shape: 0.43 },
+    background: 'circle',
+    animate: 'hover',
+  });
 
   // Check cloud session & start background sync if logged in
   if (ConvexService.isAuthenticated() && ConvexService.isConfigured()) {

@@ -6,6 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>GPA</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/blobatar/dist/motion.css">
   <link rel="stylesheet" href="style.css">
 </head>
 
@@ -75,24 +76,37 @@
         <div class="dropdown" id="auth-dropdown">
           <button id="btn-auth-toggle" class="dropdown-toggle auth-toggle-btn" aria-expanded="false"
             aria-haspopup="true" title="Cloud Sync & Account">
-            <span id="auth-status-dot" class="status-dot offline"></span>
-            <span id="auth-btn-label"><i class="fa-solid fa-cloud"></i> Sign In / Sync</span> <i
+            <span id="auth-header-avatar" class="auth-header-avatar"></span>
+            <span id="auth-btn-label">Sign In / Sync</span> <i
               class="fa-solid fa-caret-down dropdown-caret"></i>
           </button>
           <div class="dropdown-menu" id="auth-menu">
             <div id="auth-menu-guest" class="dropdown-auth-section">
-              <div class="dropdown-auth-status">
-                <span class="auth-status-title">Local Mode</span>
-                <span class="auth-status-desc">Changes stored locally on this device.</span>
+              <div class="dropdown-auth-profile-card">
+                <div id="auth-menu-guest-avatar" class="dropdown-avatar-container"></div>
+                <div class="dropdown-auth-profile-info">
+                  <span class="auth-status-title">Local Mode</span>
+                  <span class="auth-status-desc">
+                    <span class="status-dot offline"></span>
+                    <span>Changes stored locally on this device.</span>
+                  </span>
+                </div>
               </div>
+              <div class="dropdown-divider"></div>
               <button id="btn-auth-open-modal" class="dropdown-item btn-menu-primary">
                 <i class="fa-solid fa-cloud-arrow-up"></i> Sign In / Sync Account
               </button>
             </div>
             <div id="auth-menu-user" class="dropdown-auth-section" style="display: none;">
-              <div class="dropdown-auth-status">
-                <span class="auth-status-title" id="auth-menu-username"><i class="fa-solid fa-user"></i> Username</span>
-                <span class="auth-status-desc" id="auth-sync-status-desc">Synced with cloud</span>
+              <div class="dropdown-auth-profile-card">
+                <div id="auth-menu-avatar" class="dropdown-avatar-container"></div>
+                <div class="dropdown-auth-profile-info">
+                  <span class="auth-status-title" id="auth-menu-username">Username</span>
+                  <span class="auth-status-desc">
+                    <span id="auth-status-dot" class="status-dot online"></span>
+                    <span id="auth-sync-status-desc">Synced with cloud</span>
+                  </span>
+                </div>
               </div>
               <div class="dropdown-divider"></div>
               <button id="btn-auth-sync-now" class="dropdown-item">
@@ -297,6 +311,11 @@
         <div class="auth-tabs">
           <button id="tab-auth-login" class="auth-tab-btn active">Sign In</button>
           <button id="tab-auth-register" class="auth-tab-btn">Create Account</button>
+        </div>
+
+        <div class="auth-avatar-preview-box">
+          <div id="auth-modal-avatar-preview" class="auth-modal-avatar"></div>
+          <div class="auth-avatar-preview-hint">Live Blobatar Preview</div>
         </div>
 
         <form id="auth-form" class="auth-form">
